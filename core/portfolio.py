@@ -1,9 +1,7 @@
-from logger import Logger
+from core import Logger
+from datetime import datetime
 from pandas import DataFrame, Series
 from typing import Dict, List, Union
-from datetime import datetime
-
-logger = Logger(__name__)
 
 class Portfolio:
     """
@@ -44,7 +42,7 @@ class Portfolio:
         self.positions: Dict[str, int] = {}
         self.trade_history: List[Dict] = []
         self.portfolio_history: List[Dict] = []
-        self.logger = logger
+        self.logger = Logger(__name__)
 
         # Начальная запись в историю
         self._record_portfolio_snapshot(datetime.now(), "Начальное состояние портфеля")
@@ -85,22 +83,25 @@ class Portfolio:
         trade_record = {
             'timestamp': timestamp,
             'symbol': symbol,
-            'action': 'Покупка',
+            'action': 'BUY',
             'quantity': quantity,
             'price': price,
             'total': total_cost,
+            'commission': 0,
             'reason': reason
         }
         self.trade_history.append(trade_record)
 
         self.logger.info(
                     f"Покупка: {quantity} акций {symbol} по ${price:.2f} (Общая сумма: ${total_cost:.2f}) - {reason}")
-        self._record_portfolio_snapshot(timestamp, f"Покупка {quantity} акций {symbol}")
+
+        # После сделки записываем снимок с текущей ценой
+        current_prices = {symbol: price}
+        self._record_portfolio_snapshot(timestamp, f"Покупка {quantity} акций {symbol}", current_prices)
 
         return True
 
-    def sell(self, symbol: str, quantity: int, price: float,
-             timestamp: datetime, reason: str = "") -> bool:
+    def sell(self, symbol: str, quantity: int, price: float, timestamp: datetime, reason: str = "") -> bool:
         """
         Продажа указанного количества акций по заданной цене.
 
@@ -140,17 +141,21 @@ class Portfolio:
         trade_record = {
             'timestamp': timestamp,
             'symbol': symbol,
-            'action': 'Продажа',
+            'action': 'SELL',
             'quantity': quantity,
             'price': price,
             'total': total_revenue,
+            'commission': 0,
             'reason': reason
         }
         self.trade_history.append(trade_record)
 
         self.logger.info(f"Продажа: {quantity} акций {symbol} по ${price:.2f} "
                          f"(Общая сумма: ${total_revenue:.2f}) - {reason}")
-        self._record_portfolio_snapshot(timestamp, f"Продажа {quantity} акций {symbol}")
+
+        # После сделки записываем снимок с текущей ценой
+        current_prices = {symbol: price}
+        self._record_portfolio_snapshot(timestamp, f"Продажа {quantity} акций {symbol}", current_prices)
 
         return True
 
@@ -186,18 +191,14 @@ class Portfolio:
             >>> portfolio.get_portfolio_value({"AAPL": 155.0})
             10100.0
         """
-        stocks_value = sum(
-            quantity * current_prices.get(symbol, 0)
-            for symbol, quantity in self.positions.items()
-        )
+        stocks_value = sum(quantity * current_prices.get(symbol, 0) for symbol, quantity in self.positions.items())
         portfolio_value = self.cash + stocks_value
 
         self.logger.debug(f"Расчет стоимости портфеля: наличные ${self.cash:.2f}, "
                           f"акции ${stocks_value:.2f}, общая стоимость ${portfolio_value:.2f}")
         return portfolio_value
 
-    def update_portfolio_value(self, current_prices: Dict[str, float],
-                               timestamp: datetime) -> float:
+    def update_portfolio_value(self, current_prices: Dict[str, float], timestamp: datetime) -> float:
         """
         Обновление и запись текущей стоимости портфеля в историю.
 
@@ -209,52 +210,89 @@ class Portfolio:
             float: Текущая стоимость портфеля
         """
         portfolio_value = self.get_portfolio_value(current_prices)
-        self._record_portfolio_snapshot(timestamp, "Периодическое обновление")
+        self._record_portfolio_snapshot(timestamp, "Периодическое обновление", current_prices)
         self.logger.info(f"Обновлена стоимость портфеля: ${portfolio_value:.2f}")
         return portfolio_value
 
-    def _record_portfolio_snapshot(self, timestamp: datetime, note: str = "") -> None:
+    def _record_portfolio_snapshot(self, timestamp: datetime, note: str = "",
+                                                                    current_prices: Dict[str, float] = None) -> None:
         """
         Внутренний метод для записи снимка состояния портфеля.
 
         Аргументы:
             timestamp (datetime): Время снимка
             note (str): Примечание к снимку
+            current_prices (Dict[str, float]): Текущие цены акций (опционально)
         """
+        # Расчет стоимости акций
+        stocks_value = 0.0
+        if current_prices:
+            # Если есть цены, рассчитываем реальную стоимость
+            stocks_value = sum(quantity * current_prices.get(symbol, 0) for symbol, quantity in self.positions.items())
+        else:
+            stocks_value = 0.0
+            self.logger.warning(f"⚠️ Нет цен для расчета стоимости акций в снимке {timestamp}")
+
+        total_value = self.cash + stocks_value
+
         snapshot = {
             'timestamp': timestamp,
             'cash': self.cash,
             'positions': self.positions.copy(),
-            'total_value': self.cash + sum(
-                quantity for quantity in self.positions.values()
-            ),  # Примерная стоимость без цен
+            'stocks_value': stocks_value,
+            'total_value': total_value,
             'note': note
         }
         self.portfolio_history.append(snapshot)
 
-    def get_equity_curve(self, historical_data: DataFrame) -> Series:
+    def get_equity_curve(self, historical_data: DataFrame) -> Dict[str, Series]:
         """
-        Расчет кривой капитала на основе исторических данных.
+        Расчет кривых капитала: общая стоимость, денежные средства, стоимость акций.
 
         Аргументы:
             historical_data (DataFrame): Исторические данные цен
 
         Возвращает:
-            Series: Кривая капитала с датами в индексе
-
-        Применение:
-            Это упрощенная реализация, которая будет дополнена в бэктестере
+            Dict: Словарь с кривыми:
+                total (Series): общая стоимость портфеля
+                cash (Series): денежные средства
+                stocks (Series): стоимость акций
         """
-        dates = []
-        equity_values = []
+        full_dates = historical_data.index
 
+        # Инициализируем серии
+        total_curve = Series(index=full_dates, dtype=float)
+        cash_curve = Series(index=full_dates, dtype=float)
+        stocks_curve = Series(index=full_dates, dtype=float)
+
+        # Если нет истории, используем начальные значения
+        if not self.portfolio_history:
+            self.logger.warning("⚠️ История портфеля пуста, используем начальные значения")
+            total_curve[:] = self.initial_cash
+            cash_curve[:] = self.initial_cash
+            stocks_curve[:] = 0
+            return {'total': total_curve, 'cash': cash_curve, 'stocks': stocks_curve}
+
+        # Заполняем кривые из истории портфеля
         for snapshot in self.portfolio_history:
-            # Упрощенная реализация - будет улучшена
-            equity_values.append(snapshot['total_value'])
-            dates.append(snapshot['timestamp'])
+            snapshot_time = snapshot['timestamp']
 
-        self.logger.info(f"Сформирована кривая капитала из {len(equity_values)} точек")
-        return Series(equity_values, index=dates)
+            if snapshot_time in total_curve.index:
+                total_curve[snapshot_time] = snapshot['total_value']
+                cash_curve[snapshot_time] = snapshot['cash']
+
+                # Расчет стоимости акций
+                stocks_value = snapshot['total_value'] - snapshot['cash']
+                stocks_curve[snapshot_time] = stocks_value
+
+        # Forward fill для заполнения пропусков
+        total_curve = total_curve.ffill().bfill().fillna(self.initial_cash)
+        cash_curve = cash_curve.ffill().bfill().fillna(self.initial_cash)
+        stocks_curve = stocks_curve.ffill().bfill().fillna(0)
+
+        self.logger.info(f"📈 Построены кривые капитала: {len(total_curve)} точек")
+
+        return {'total': total_curve, 'cash': cash_curve, 'stocks': stocks_curve}
 
     def get_trade_history_df(self) -> DataFrame:
         """

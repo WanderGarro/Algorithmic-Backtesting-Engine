@@ -1,6 +1,6 @@
 from indicators import MACD
+from strategies import BaseStrategy
 from pandas import DataFrame, Series
-from base_strategy import BaseStrategy
 
 class MACDStrategy(BaseStrategy):
     """

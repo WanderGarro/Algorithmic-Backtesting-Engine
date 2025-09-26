@@ -3,3 +3,4 @@ scipy
 pandas
 django
 yfinance
+django-widget-tweaks

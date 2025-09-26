@@ -1,3 +1,5 @@
 from django.contrib import admin
 
-# Register your models here.
+# Регистрация моделей в административной панели Django
+# В данном проекте модели не используются, поэтому файл остается пустым
+# Для добавления моделей в Админ-панель используйте: admin.site.register(YourModel)

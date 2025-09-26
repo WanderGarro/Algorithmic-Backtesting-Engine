@@ -1,0 +1,417 @@
+{% extends 'trading/base.html' %}
+
+{% block title %}Результаты бэктеста - Торговая платформа{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>
+                <i class="bi bi-graph-up"></i> Результаты бэктеста
+            </h1>
+            <a href="{% url 'backtest' %}" class="btn btn-outline-primary">
+                <i class="bi bi-arrow-left"></i> Новый тест
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Основные метрики -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card metric-card text-center bg-success text-white">
+            <div class="card-body">
+                <h4 class="card-title">{{ results.total_return|floatformat:2 }}%</h4>
+                <p class="card-text">Общая доходность</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card metric-card text-center bg-info text-white">
+            <div class="card-body">
+                <h4 class="card-title">{{ results.sharpe_ratio|floatformat:2 }}</h4>
+                <p class="card-text">Коэффициент Шарпа</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card metric-card text-center bg-warning text-white">
+            <div class="card-body">
+                <h4 class="card-title">{{ results.max_drawdown|floatformat:2 }}%</h4>
+                <p class="card-text">Макс. просадка</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card metric-card text-center bg-primary text-white">
+            <div class="card-body">
+                <h4 class="card-title">{{ results.win_rate|floatformat:1 }}%</h4>
+                <p class="card-text">Win Rate</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- График кривой капитала -->
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-header bg-dark text-white">
+                <h5 class="card-title mb-0">Кривая капитала</h5>
+            </div>
+            <div class="card-body">
+                <div id="equity-chart" class="equity-chart">
+                    <!-- График будет построен с помощью Chart.js -->
+                    <canvas id="equityChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Детальная статистика и действия -->
+    <div class="col-lg-4">
+        <div class="card mb-4">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="card-title mb-0">Детальная статистика</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tr>
+                        <td>Финальная стоимость:</td>
+                        <td class="text-end">${{ results.final_portfolio_value|floatformat:2 }}</td>
+                    </tr>
+                    <tr>
+                        <td>Всего сделок:</td>
+                        <td class="text-end">{{ results.total_trades }}</td>
+                    </tr>
+                    <tr>
+                        <td>Прибыльных сделок:</td>
+                        <td class="text-end">{{ results.win_trades|default:"0" }}</td>
+                    </tr>
+                    <tr>
+                        <td>Убыточных сделок:</td>
+                        <td class="text-end">{{ results.los_trades|default:"0" }}</td>
+                    </tr>
+                    <tr>
+                        <td>Средняя прибыль:</td>
+                        <td class="text-end">{{ results.avg_win|default:"0"|floatformat:2 }}%</td>
+                    </tr>
+                    <tr>
+                        <td>Средний убыток:</td>
+                        <td class="text-end">{{ results.avg_loss|default:"0"|floatformat:2 }}%</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <!-- Действия с результатом -->
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">Действия</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{% url 'result_detail' result_id %}" class="btn btn-outline-primary">
+                        <i class="bi bi-eye"></i> Детальный просмотр
+                    </a>
+
+                    <a href="{% url 'export_result' result_id %}" class="btn btn-outline-success" id="export-csv-btn">
+                        <i class="bi bi-save"></i> Сохранить результат
+                    </a>
+
+                    <a href="{% url 'history' %}" class="btn btn-outline-info">
+                        <i class="bi bi-clock-history"></i> История тестов
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Таблица сделок -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                <h5 class="card-title mb-0">История сделок</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Дата</th>
+                                <th>Тип</th>
+                                <th>Цена</th>
+                                <th>Количество</th>
+                                <th>Стоимость</th>
+                                <th>PnL</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for trade in results.trades_data %}
+                            <tr class="{% if trade.action == 'BUY' %}table-success{% else %}table-danger{% endif %}">
+                                <td>{{ trade.timestamp|date:"d.m.Y H:i" }}</td>
+                                <td>
+                                    <span class="badge {% if trade.action == 'BUY' %}bg-success{% else %}bg-danger{% endif %}">
+                                        {{ trade.action }}
+                                    </span>
+                                </td>
+                                <td>${{ trade.price|floatformat:2 }}</td>
+                                <td>{{ trade.quantity|floatformat:0 }}</td>
+                                <td>${{ trade.value|floatformat:2 }}</td>
+                                <td class="{% if trade.pnl_percent >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                    {{ trade.pnl_percent|floatformat:2 }}%
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Данные для графика
+let chartCtx = null;
+let chartInstance = null;
+
+function showExportToast() {
+    if (typeof bootstrap !== 'undefined') {
+        const toastElement = document.createElement('div');
+        toastElement.className = 'toast align-items-center text-white bg-success border-0';
+        toastElement.style.position = 'fixed';
+        toastElement.style.top = '20px';
+        toastElement.style.right = '20px';
+        toastElement.style.zIndex = '1050';
+        toastElement.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body">
+                    <i class="bi bi-check-circle"></i> Экспорт CSV завершен успешно!
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        `;
+
+        document.body.appendChild(toastElement);
+        const toast = new bootstrap.Toast(toastElement);
+        toast.show();
+
+        // Удаляем элемент после скрытия
+        toastElement.addEventListener('hidden.bs.toast', () => {
+            toastElement.remove();
+        });
+    }
+}
+
+// Инициализация графика
+document.addEventListener('DOMContentLoaded', function() {
+    try {
+        chartCtx = document.getElementById('equityChart');
+        if (!chartCtx) {
+            throw new Error('Canvas element not found');
+        }
+
+        const equityCurves = {{ results.equity_curve_data|safe }};
+
+        if (!equityCurves || typeof equityCurves !== 'object') {
+            throw new Error('Invalid equity data format');
+        }
+
+        // Подготовка данных для всех кривых
+        const datasets = [];
+        const colors = {
+            'total': { border: '#0d6efd', background: 'rgba(13, 110, 253, 0.1)' },
+            'cash': { border: '#28a745', background: 'rgba(40, 167, 69, 0.1)' },
+            'stocks': { border: '#ffc107', background: 'rgba(255, 193, 7, 0.1)' }
+        };
+
+        const labels = [];
+
+        // Обрабатываем первую кривую для получения дат
+        const firstCurveName = Object.keys(equityCurves)[0];
+        if (equityCurves[firstCurveName]) {
+            const entries = Object.entries(equityCurves[firstCurveName]);
+            entries.sort((a, b) => new Date(a[0]) - new Date(b[0]));
+
+            entries.forEach(([dateString, value]) => {
+                const date = new Date(dateString);
+                const formattedDate = `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getFullYear()}`;
+                labels.push(formattedDate);
+            });
+        }
+
+        // Создаем datasets для каждой кривой
+        Object.entries(equityCurves).forEach(([curveName, curveData]) => {
+            const entries = Object.entries(curveData);
+            entries.sort((a, b) => new Date(a[0]) - new Date(b[0]));
+
+            const data = entries.map(([_, value]) => parseFloat(value) || 0);
+
+            const curveConfig = {
+                label: getCurveLabel(curveName),
+                data: data,
+                borderColor: colors[curveName]?.border || getRandomColor(),
+                backgroundColor: colors[curveName]?.background || 'rgba(0,0,0,0.1)',
+                borderWidth: 2,
+                fill: curveName === 'total',
+                tension: 0.1,
+                pointRadius: 0,
+                pointHoverRadius: 3,
+                hidden: false //curveName !== 'total'
+            };
+
+            datasets.push(curveConfig);
+        });
+
+        // Создаем график
+        chartInstance = new Chart(chartCtx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: {
+                            usePointStyle: true,
+                            padding: 20
+                        }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.dataset.label || '';
+                                const value = context.parsed.y;
+                                return `${label}: $${value.toLocaleString('ru-RU', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            maxRotation: 45,
+                            callback: function(value, index, ticks) {
+                                if (ticks.length > 15 && index % Math.ceil(ticks.length / 8) !== 0) {
+                                    return null;
+                                }
+                                return this.getLabelForValue(value);
+                            }
+                        }
+                    },
+                    y: {
+                        beginAtZero: false,
+                        grid: {
+                            color: 'rgba(0,0,0,0.1)'
+                        },
+                        ticks: {
+                            callback: function(value) {
+                                return '$' + value.toLocaleString('ru-RU');
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Error loading chart:', error);
+        showChartError(error);
+    }
+});
+
+// Функция для перевода названий кривых
+function getCurveLabel(curveName) {
+    const labels = {
+        'total': '💰 Общая стоимость',
+        'cash': '💵 Денежные средства',
+        'stocks': '📈 Стоимость акций'
+    };
+    return labels[curveName] || curveName;
+}
+
+// Функция для случайного цвета
+function getRandomColor() {
+    return '#' + Math.floor(Math.random()*16777215).toString(16);
+}
+
+// Функции для управления графиком
+function toggleDataset(datasetName) {
+    if (!chartInstance) return;
+
+    const datasetIndex = chartInstance.data.datasets.findIndex(ds =>
+        ds.label.includes(getLabelPart(datasetName))
+    );
+
+    if (datasetIndex !== -1) {
+        const meta = chartInstance.getDatasetMeta(datasetIndex);
+        meta.hidden = !meta.hidden;
+        chartInstance.update();
+    }
+}
+
+function getLabelPart(name) {
+    const parts = {
+        'total': 'Общая',
+        'cash': 'Денежные',
+        'stocks': 'Акций'
+    };
+    return parts[name] || name;
+}
+
+function showChartError(error) {
+    const chartContainer = document.getElementById('equity-chart');
+    if (chartContainer) {
+        chartContainer.innerHTML = `
+            <div class="text-center text-muted p-5">
+                <i class="bi bi-exclamation-triangle display-4 d-block mb-3"></i>
+                <h5>Не удалось загрузить график</h5>
+                <p class="small">${error.message}</p>
+            </div>
+        `;
+    }
+}
+</script>
+
+<style>
+.chart-controls {
+    text-align: center;
+}
+.chart-controls .btn-group {
+    flex-wrap: wrap;
+    justify-content: center;
+}
+.chart-controls .btn {
+    margin: 2px;
+    font-size: 0.8rem;
+    padding: 0.25rem 0.5rem;
+}
+.equity-chart {
+    height: 445px;
+    position: relative;
+}
+</style>
+{% endblock %}

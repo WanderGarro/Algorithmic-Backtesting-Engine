@@ -1,0 +1,175 @@
+{% extends 'trading/base.html' %}
+{% load widget_tweaks %}
+
+{% block title %}Бэктестинг - Торговая платформа{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="bi bi-speedometer2"></i> Бэктестинг стратегий
+        </h1>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">Параметры бэктеста</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" id="backtest-form">
+                    {% csrf_token %}
+                    
+                    {% if form.non_field_errors %}
+                    <div class="alert alert-danger">
+                        {% for error in form.non_field_errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <div class="row g-3">
+                        <!-- Основные параметры -->
+                        <div class="col-md-6">
+                            <label for="{{ form.symbol.id_for_label }}" class="form-label">Тикер</label>
+                            {% render_field form.symbol class="form-control" %}
+                            {% if form.symbol.errors %}
+                                <div class="text-danger small">{{ form.symbol.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="{{ form.strategy.id_for_label }}" class="form-label">Стратегия</label>
+                            {% render_field form.strategy class="form-control" id="strategy-select" %}
+                            {% if form.strategy.errors %}
+                                <div class="text-danger small">{{ form.strategy.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="{{ form.start_date.id_for_label }}" class="form-label">Начальная дата</label>
+                            {% render_field form.start_date class="form-control" type="date" %}
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="{{ form.end_date.id_for_label }}" class="form-label">Конечная дата</label>
+                            {% render_field form.end_date class="form-control" type="date" %}
+                        </div>
+
+                        <div class="col-12">
+                            <label for="{{ form.initial_capital.id_for_label }}" class="form-label">Начальный капитал ($)</label>
+                            {% render_field form.initial_capital class="form-control" %}
+                        </div>
+                    </div>
+
+                    <!-- Динамические параметры стратегии -->
+                    <div id="strategy-params" class="mt-4">
+                        <h6>Параметры стратегии</h6>
+                        <div id="dynamic-params">
+                            <!-- Параметры будут загружаться динамически -->
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg w-100" id="run-backtest">
+                            <i class="bi bi-play-circle"></i> Запустить бэктест
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <!-- Информация о стратегии -->
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="card-title mb-0">Информация о стратегии</h5>
+            </div>
+            <div class="card-body">
+                <div id="strategy-info">
+                    <p class="text-muted">Выберите стратегию для просмотра описания и параметров</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Быстрый выбор -->
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="card-title mb-0">Быстрый выбор</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button class="btn btn-outline-primary preset-btn" data-preset="default">
+                        Стандартные настройки
+                    </button>
+                    <button class="btn btn-outline-success preset-btn" data-preset="conservative">
+                        Консервативная стратегия
+                    </button>
+                    <button class="btn btn-outline-warning preset-btn" data-preset="aggressive">
+                        Агрессивная стратегия
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const strategySelect = document.getElementById('strategy-select');
+    const strategyInfo = document.getElementById('strategy-info');
+    const dynamicParams = document.getElementById('dynamic-params');
+    
+    // Загрузка информации о стратегиях
+    fetch('/api/strategies/')
+        .then(response => response.json())
+        .then(strategies => {
+            window.strategiesData = strategies;
+            
+            strategySelect.addEventListener('change', function() {
+                const strategyKey = this.value;
+                const strategy = strategies[strategyKey];
+                
+                if (strategy) {
+                    // Обновляем информацию о стратегии
+                    strategyInfo.innerHTML = `
+                        <h6>${strategy.name}</h6>
+                        <p class="small">${strategy.description}</p>
+                        <hr>
+                        <small class="text-muted">Параметры:</small>
+                        <ul class="small">
+                            ${Object.entries(strategy.parameters).map(([key, param]) => 
+                                `<li><strong>${key}</strong>: ${param.description} (по умолчанию: ${param.default})</li>`
+                            ).join('')}
+                        </ul>
+                    `;
+                    
+                    // Генерируем поля для параметров
+                    dynamicParams.innerHTML = Object.entries(strategy.parameters).map(([key, param]) => `
+                        <div class="strategy-param">
+                            <label class="form-label">${key}</label>
+                            <input type="number" 
+                                   class="form-control" 
+                                   name="strategy_params_${key}" 
+                                   value="${param.default}"
+                                   step="${param.step || 1}"
+                                   min="${param.min || 0}">
+                            <small class="text-muted">${param.description}</small>
+                        </div>
+                    `).join('');
+                }
+            });
+            
+            // Инициализируем для выбранной стратегии
+            if (strategySelect.value) {
+                strategySelect.dispatchEvent(new Event('change'));
+            }
+        });
+});
+</script>
+{% endblock %}

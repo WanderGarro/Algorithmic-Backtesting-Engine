@@ -2,8 +2,6 @@ from time import time
 from core import Logger
 from typing import Any, Optional
 
-logger = Logger(__name__)
-
 class DataCache:
     """
     Простой in-memory кэш для временного хранения финансовых данных.
@@ -11,6 +9,7 @@ class DataCache:
     Поддерживает настраиваемое время жизни записей и предоставляет статистику использования.
 
     Аргументы:
+        logger (Logger): Логгер для записи информации о сделках
         default_timeout (int): Время жизни записей по умолчанию в секундах
         _cache (dict): Словарь для хранения кэшированных данных
         _timestamps (dict): Словарь для хранения временных меток истечения срока жизни
@@ -31,6 +30,7 @@ class DataCache:
         self.default_timeout = default_timeout
         self._cache = {}
         self._timestamps = {}
+        self.logger = Logger(__name__)
 
     def get(self, key: str) -> Optional[Any]:
         """
@@ -54,7 +54,7 @@ class DataCache:
             self.delete(key)
             return None
 
-        logger.debug(f"Кэш попадание для ключа: {key}")
+        self.logger.debug(f"Кэш попадание для ключа: {key}")
         return self._cache[key]
 
     def set(self, key: str, value: Any, timeout: Optional[int] = None):
@@ -73,7 +73,7 @@ class DataCache:
         timeout = timeout or self.default_timeout
         self._cache[key] = value
         self._timestamps[key] = time() + timeout
-        logger.debug(f"Данные сохранены в кэш для ключа: {key}")
+        self.logger.debug(f"Данные сохранены в кэш для ключа: {key}")
 
     def delete(self, key: str):
         """
@@ -90,7 +90,7 @@ class DataCache:
             del self._cache[key]
         if key in self._timestamps:
             del self._timestamps[key]
-        logger.debug(f"Данные удалены из кэша для ключа: {key}")
+        self.logger.debug(f"Данные удалены из кэша для ключа: {key}")
 
     def clear(self):
         """
@@ -104,7 +104,7 @@ class DataCache:
         """
         self._cache.clear()
         self._timestamps.clear()
-        logger.info("Кэш полностью очищен")
+        self.logger.info("Кэш полностью очищен")
 
     def _is_expired(self, key: str) -> bool:
         """

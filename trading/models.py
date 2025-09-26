@@ -28,7 +28,14 @@ class BacktestResult(models.Model):
     total_return = models.FloatField(verbose_name="Общая доходность")
     sharpe_ratio = models.FloatField(verbose_name="Коэффициент Шарпа")
     max_drawdown = models.FloatField(verbose_name="Максимальная просадка")
+    win_trades = models.PositiveSmallIntegerField(default=0, verbose_name="Количество прибыльных сделок")
+    los_trades = models.PositiveSmallIntegerField(default=0, verbose_name="Количество убыточных сделок")
+    avg_win = models.FloatField(default=0.0, verbose_name="Средняя прибыль")
+    avg_loss = models.FloatField(default=0.0, verbose_name="Средний убыток")
     win_rate = models.FloatField(verbose_name="Процент прибыльных сделок")
+
+    final_portfolio_value = models.FloatField(default=0.0, verbose_name="Конечная стоимость портфеля")
+    total_trades = models.IntegerField(default=0, verbose_name="Итог по сделкам")
 
     # Параметры стратегии
     strategy_params = models.JSONField(default=dict, verbose_name="Параметры стратегии")
@@ -45,4 +52,4 @@ class BacktestResult(models.Model):
 
     def __str__(self):
         """Строковое представление объекта для админки и отладки."""
-        return f"{self.symbol} - {self.get_strategy_display()} - {self.created_at}"
+        return f"{self.strategy} - {self.symbol} - {self.start_date} to {self.end_date}"

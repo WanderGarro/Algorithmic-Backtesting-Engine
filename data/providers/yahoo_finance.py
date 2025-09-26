@@ -5,8 +5,6 @@ from data.cache import DataCache
 from typing import Dict, Optional
 from data.data_provider import DataProvider
 
-logger = Logger(__name__)
-
 class YahooFinanceProvider(DataProvider):
     """
     Провайдер для получения финансовых данных из Yahoo Finance API.
@@ -16,6 +14,7 @@ class YahooFinanceProvider(DataProvider):
     Аргументы:
         cache (Optional[DataCache]): Специализированный класс для хранения кэшированных данных
         cache_timeout (int): Время жизни кэша в секундах (по умолчанию 300 секунд)
+        logger (Logger): Логгер для записи информации о сделках
 
     Пример:
         >>> provider = YahooFinanceProvider()
@@ -32,6 +31,7 @@ class YahooFinanceProvider(DataProvider):
             cache (Optional[DataCache]): Специализированный для хранения кэшированных данных
             cache_timeout (int, optional): Время жизни кэша в секундах. По умолчанию 300 секунд (5 минут).
         """
+        self.logger = Logger(__name__)
         self.cache_timeout = cache_timeout
         self.cache = cache or DataCache(default_timeout=cache_timeout)
 
@@ -71,7 +71,7 @@ class YahooFinanceProvider(DataProvider):
             if cached_data is not None:
                 return cached_data
 
-            logger.info(f"Загружаем данные для {symbol} с {start_date} по {end_date}")
+            self.logger.info(f"Загружаем данные для {symbol} с {start_date} по {end_date}")
 
             # Загружаем данные
             ticker = Ticker(symbol)
@@ -87,13 +87,7 @@ class YahooFinanceProvider(DataProvider):
                     raise ValueError(f"Отсутствует колонка {col} в данных")
 
             # Переименовываем колонки для consistency
-            data = data.rename(columns={
-                'Open': 'open',
-                'High': 'high',
-                'Low': 'low',
-                'Close': 'close',
-                'Volume': 'volume'
-            })
+            data = data.rename(columns={'Open':'open','High':'high','Low':'low','Close':'close','Volume':'volume'})
 
             # Добавляем тикер и дату как индекс
             data['symbol'] = symbol
@@ -103,12 +97,12 @@ class YahooFinanceProvider(DataProvider):
             data = self._fill_missing_data(data)
 
             # Сохраняем в кэш
-            logger.info(f"Успешно загружено {len(data)} записей для {symbol}")
+            self.logger.info(f"Успешно загружено {len(data)} записей для {symbol}")
             self.cache.set(cache_key, data)
             return data
 
         except Exception as e:
-            logger.error(f"Ошибка при загрузке данных для {symbol}: {str(e)}")
+            self.logger.error(f"Ошибка при загрузке данных для {symbol}: {str(e)}")
             raise
 
     def get_multiple_symbols(self, symbols: list, start_date: str, end_date: str) -> Dict[str, DataFrame]:
@@ -135,7 +129,7 @@ class YahooFinanceProvider(DataProvider):
                 data = self.get_historical_data(symbol, start_date, end_date)
                 results[symbol] = data
             except Exception as e:
-                logger.error(f"Ошибка при загрузке {symbol}: {str(e)}")
+                self.logger.error(f"Ошибка при загрузке {symbol}: {str(e)}")
                 results[symbol] = DataFrame()
 
         return results
@@ -167,7 +161,7 @@ class YahooFinanceProvider(DataProvider):
             self.cache.set(cache_key, price, timeout=60)  # Короткий TTL для цен
             return price
         except Exception as e:
-            logger.error(f"Ошибка при получении цены для {symbol}: {str(e)}")
+            self.logger.error(f"Ошибка при получении цены для {symbol}: {str(e)}")
             return 0.0
 
     def get_company_info(self, symbol: str) -> Dict:
@@ -213,7 +207,7 @@ class YahooFinanceProvider(DataProvider):
             self.cache.set(cache_key, company_info, timeout=3600)  # Длинный TTL
             return company_info
         except Exception as e:
-            logger.error(f"Ошибка при получении информации о {symbol}: {str(e)}")
+            self.logger.error(f"Ошибка при получении информации о {symbol}: {str(e)}")
             return {}
 
     @staticmethod

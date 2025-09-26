@@ -53,10 +53,13 @@
     ├── trading/                  # DJANGO APP - WEB ИНТЕРФЕЙС
     │   ├── migrations/
     │   ├── templates/trading/
+    │   │   ├── base.html         # Базовый шаблон
     │   │   ├── index.html        # Главная страница
     │   │   ├── backtest.html     # Страница бэктестинга
-    │   │   ├── results.html      # Результаты
+    │   │   ├── history.html      # История бэктестов
+    │   │   ├── results.html      # Результаты бэктестов
     │   │   └── strategies.html   # Описание стратегий
+    │   │
     │   ├── __init__.py
     │   ├── admin.py              # Админ-панель
     │   ├── apps.py               # Конфигурация приложения

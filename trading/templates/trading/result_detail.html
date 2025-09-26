@@ -1,0 +1,396 @@
+{% extends 'trading/base.html' %}
+
+{% block title %}Результаты бэктеста - Торговая платформа{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>
+                <i class="bi bi-graph-up"></i> Результаты бэктеста
+            </h1>
+            <a href="{% url 'backtest' %}" class="btn btn-outline-primary">
+                <i class="bi bi-arrow-left"></i> Новый тест
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Основные метрики -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card metric-card text-center bg-success text-white">
+            <div class="card-body">
+                <h4 class="card-title">{{ result.total_return|floatformat:2 }}%</h4>
+                <p class="card-text">Общая доходность</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card metric-card text-center bg-info text-white">
+            <div class="card-body">
+                <h4 class="card-title">{{ result.sharpe_ratio|floatformat:2 }}</h4>
+                <p class="card-text">Коэффициент Шарпа</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card metric-card text-center bg-warning text-white">
+            <div class="card-body">
+                <h4 class="card-title">{{ result.max_drawdown|floatformat:2 }}%</h4>
+                <p class="card-text">Макс. просадка</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card metric-card text-center bg-primary text-white">
+            <div class="card-body">
+                <h4 class="card-title">{{ result.win_rate|floatformat:1 }}%</h4>
+                <p class="card-text">Win Rate</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- График кривой капитала -->
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Кривая капитала</h5>
+            </div>
+            <div class="card-body">
+                <div id="equity-chart" class="equity-chart">
+                    {% if result.equity_curve_data %}
+                    <canvas id="equityChart"></canvas>
+                    {% else %}
+                    <div class="text-center text-muted p-5">
+                        <i class="bi bi-exclamation-triangle display-4 d-block mb-3"></i>
+                        <p>Данные графика недоступны</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Детальная статистика и действия -->
+    <div class="col-lg-4">
+        <div class="card mb-4">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="card-title mb-0">Информация о тесте</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tr>
+                        <td>Стратегия:</td>
+                        <td class="text-end">{{ result.get_strategy_display }}</td>
+                    </tr>
+                    <tr>
+                        <td>Тикер:</td>
+                        <td class="text-end"><strong>{{ result.symbol }}</strong></td>
+                    </tr>
+                    <tr>
+                        <td>Период:</td>
+                        <td class="text-end">{{ result.start_date|date:"d.m.Y" }} - {{ result.end_date|date:"d.m.Y" }}</td>
+                    </tr>
+                    <tr>
+                        <td>Начальный капитал:</td>
+                        <td class="text-end">${{ result.initial_capital|floatformat:2 }}</td>
+                    </tr>
+                    <tr>
+                        <td>Финальная стоимость:</td>
+                        <td class="text-end">${{ result.final_portfolio_value|floatformat:2 }}</td>
+                    </tr>
+                    <tr>
+                        <td>Всего сделок:</td>
+                        <td class="text-end">{{ result.total_trades }}</td>
+                    </tr>
+                    <tr>
+                        <td>Дата теста:</td>
+                        <td class="text-end">{{ result.created_at|date:"d.m.Y H:i" }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <!-- Действия с результатом -->
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">Действия</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{% url 'backtest' %}?duplicate={{ result.id }}" class="btn btn-outline-success">
+                        <i class="bi bi-arrow-repeat"></i> Повторить тест
+                    </a>
+                    <a href="{% url 'history' %}" class="btn btn-outline-info">
+                        <i class="bi bi-clock-history"></i> К истории
+                    </a>
+                    <form method="post" action="{% url 'delete_result' result.id %}" class="d-inline">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-outline-danger w-100" onclick="return confirm('Удалить результат?')">
+                            <i class="bi bi-trash"></i> Удалить
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Таблица сделок -->
+{% if result.trades_data %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                <h5 class="card-title mb-0">История сделок</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Дата</th>
+                                <th>Тип</th>
+                                <th>Цена</th>
+                                <th>Количество</th>
+                                <th>Стоимость</th>
+                                <th>PnL</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for trade in result.trades_data %}
+                            <tr class="{% if trade.action == 'BUY' %}table-success{% else %}table-danger{% endif %}">
+                                <td>{{ trade.timestamp|date:"d.m.Y H:i" }}</td>
+                                <td>
+                                    <span class="badge {% if trade.action == 'BUY' %}bg-success{% else %}bg-danger{% endif %}">
+                                        {{ trade.action }}
+                                    </span>
+                                </td>
+                                <td>${{ trade.price|floatformat:2 }}</td>
+                                <td>{{ trade.quantity|floatformat:0 }}</td>
+                                <td>${{ trade.value|floatformat:2 }}</td>
+                                <td class="{% if trade.pnl_percent >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                    {{ trade.pnl_percent|floatformat:2 }}%
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+{% if result.equity_curve_data %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+let chartCtx = null;
+let chartInstance = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    try {
+        chartCtx = document.getElementById('equityChart');
+        if (!chartCtx) return;
+
+        const equityData = {{ result.equity_curve_data|safe }};
+
+        if (!equityData || typeof equityData !== 'object') {
+            throw new Error('Invalid equity data format');
+        }
+
+        // Подготовка данных для графика
+        const datasets = [];
+        const labels = [];
+
+        // Цвета для разных кривых
+        const colors = {
+            'total': { border: '#0d6efd', background: 'rgba(13, 110, 253, 0.1)' },
+            'cash': { border: '#28a745', background: 'rgba(40, 167, 69, 0.1)' },
+            'stocks': { border: '#ffc107', background: 'rgba(255, 193, 7, 0.1)' }
+        };
+
+        // Обрабатываем первую кривую для получения дат
+        const firstCurveName = Object.keys(equityData)[0];
+        if (equityData[firstCurveName]) {
+            const entries = Object.entries(equityData[firstCurveName]);
+            entries.sort((a, b) => new Date(a[0]) - new Date(b[0]));
+
+            entries.forEach(([dateString, value]) => {
+                const date = new Date(dateString);
+                const formattedDate = `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getFullYear()}`;
+                labels.push(formattedDate);
+            });
+        }
+
+        // Создаем datasets для каждой кривой
+        Object.entries(equityData).forEach(([curveName, curveData]) => {
+            const entries = Object.entries(curveData);
+            entries.sort((a, b) => new Date(a[0]) - new Date(b[0]));
+
+            const data = entries.map(([_, value]) => parseFloat(value) || 0);
+
+            const curveConfig = {
+                label: getCurveLabel(curveName),
+                data: data,
+                borderColor: colors[curveName]?.border || getRandomColor(),
+                backgroundColor: colors[curveName]?.background || 'rgba(0,0,0,0.1)',
+                borderWidth: 2,
+                fill: curveName === 'total',
+                tension: 0.1,
+                pointRadius: 0,
+                pointHoverRadius: 3
+            };
+
+            datasets.push(curveConfig);
+        });
+
+        // Создаем график
+        chartInstance = new Chart(chartCtx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: {
+                            usePointStyle: true,
+                            padding: 20
+                        }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.dataset.label || '';
+                                const value = context.parsed.y;
+                                return `${label}: $${value.toLocaleString('ru-RU', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: {
+                            maxRotation: 45,
+                            callback: function(value, index, ticks) {
+                                if (ticks.length > 15 && index % Math.ceil(ticks.length / 8) !== 0) {
+                                    return null;
+                                }
+                                return this.getLabelForValue(value);
+                            }
+                        }
+                    },
+                    y: {
+                        beginAtZero: false,
+                        grid: { color: 'rgba(0,0,0,0.1)' },
+                        ticks: {
+                            callback: function(value) {
+                                return '$' + value.toLocaleString('ru-RU');
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Error loading chart:', error);
+        showChartError(error);
+    }
+});
+
+// Функция для перевода названий кривых
+function getCurveLabel(curveName) {
+    const labels = {
+        'total': '💰 Общая стоимость',
+        'cash': '💵 Денежные средства',
+        'stocks': '📈 Стоимость акций'
+    };
+    return labels[curveName] || curveName;
+}
+
+// Функция для случайного цвета
+function getRandomColor() {
+    return '#' + Math.floor(Math.random()*16777215).toString(16);
+}
+
+// Функции для управления графиком
+function toggleDataset(datasetName) {
+    if (!chartInstance) return;
+
+    const datasetIndex = chartInstance.data.datasets.findIndex(ds =>
+        ds.label.includes(getLabelPart(datasetName))
+    );
+
+    if (datasetIndex !== -1) {
+        const meta = chartInstance.getDatasetMeta(datasetIndex);
+        meta.hidden = !meta.hidden;
+        chartInstance.update();
+    }
+}
+
+function getLabelPart(name) {
+    const parts = {
+        'total': 'Общая',
+        'cash': 'Денежные',
+        'stocks': 'Акций'
+    };
+    return parts[name] || name;
+}
+
+function showChartError(error) {
+    const chartContainer = document.getElementById('equity-chart');
+    if (chartContainer) {
+        chartContainer.innerHTML = `
+            <div class="text-center text-muted p-5">
+                <i class="bi bi-exclamation-triangle display-4 d-block mb-3"></i>
+                <h5>Не удалось загрузить график</h5>
+                <p class="small">${error.message}</p>
+            </div>
+        `;
+    }
+}
+</script>
+{% endif %}
+
+<style>
+.equity-chart {
+    height: 475px;
+    position: relative;
+}
+.metric-card .card-title {
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+.chart-controls .btn-group {
+    flex-wrap: wrap;
+}
+.chart-controls .btn {
+    margin: 1px;
+    font-size: 0.8rem;
+    padding: 0.2rem 0.4rem;
+}
+</style>
+{% endblock %}

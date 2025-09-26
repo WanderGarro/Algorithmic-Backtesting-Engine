@@ -1,0 +1,102 @@
+{% extends 'trading/base.html' %}
+
+{% block title %}Главная - Торговая платформа{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 text-center mb-5">
+        <h1 class="display-4 fw-bold text-primary">Торговая платформа</h1>
+        <p class="lead">Профессиональный инструмент для бэктестинга торговых стратегий</p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Карточка быстрого старта -->
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-lightning"></i> Быстрый старт
+                </h5>
+            </div>
+            <div class="card-body">
+                <p>Начните тестирование ваших торговых стратегий прямо сейчас:</p>
+                <ul class="list-unstyled">
+                    <li><i class="bi bi-check text-success"></i> Множество встроенных стратегий</li>
+                    <li><i class="bi bi-check text-success"></i> Подробная аналитика результатов</li>
+                    <li><i class="bi bi-check text-success"></i> Визуализация торговых операций</li>
+                </ul>
+                <a href="{% url 'backtest' %}" class="btn btn-primary btn-lg w-100">
+                    Начать бэктестинг
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Карточка статистики -->
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header bg-success text-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-bar-chart"></i> Статистика платформы
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6">
+                        <div class="metric-card p-3">
+                            <h3 class="text-primary">{{ total_backtests|default:"0" }}</h3>
+                            <p class="text-muted mb-0">Выполнено тестов</p>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="metric-card p-3">
+                            <h3 class="text-success">{{ available_strategies|default:"8" }}</h3>
+                            <p class="text-muted mb-0">Стратегий</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Особенности платформы -->
+<div class="row mt-5">
+    <div class="col-12">
+        <h2 class="text-center mb-4">Возможности платформы</h2>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-md-4">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <i class="bi bi-cpu display-4 text-primary"></i>
+                <h5 class="card-title">Множество стратегий</h5>
+                <p class="card-text">SMA, EMA, RSI, MACD и комбинированные стратегии для различных рынков</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <i class="bi bi-graph-up display-4 text-success"></i>
+                <h5 class="card-title">Детальная аналитика</h5>
+                <p class="card-text">Полные метрики производительности: Sharpe Ratio, Max Drawdown, Win Rate</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card text-center h-100">
+            <div class="card-body">
+                <i class="bi bi-clock-history display-4 text-info"></i>
+                <h5 class="card-title">История тестов</h5>
+                <p class="card-text">Сохранение и сравнение результатов предыдущих бэктестов</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
