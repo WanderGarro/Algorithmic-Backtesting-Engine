@@ -226,7 +226,7 @@ def export_result_to_csv(request, result_id):
         trades_data = backtest_result.trades_data if backtest_result.trades_data else []
         for trade in trades_data:
             writer.writerow([
-                trade.get('timestamp', ''),
+                trade.get('date', ''),
                 trade.get('action', ''),
                 f"${trade.get('price', 0):.2f}" if trade.get('price') else '',
                 trade.get('quantity', ''),

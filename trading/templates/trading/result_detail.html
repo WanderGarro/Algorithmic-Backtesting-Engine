@@ -124,11 +124,11 @@
             </div>
             <div class="card-body">
                 <div class="d-grid gap-2">
-                    <a href="{% url 'backtest' %}?duplicate={{ result.id }}" class="btn btn-outline-success">
-                        <i class="bi bi-arrow-repeat"></i> Повторить тест
-                    </a>
-                    <a href="{% url 'history' %}" class="btn btn-outline-info">
+                    <a href="{% url 'history' %}" class="btn btn-outline-primary">
                         <i class="bi bi-clock-history"></i> К истории
+                    </a>
+                    <a href="{% url 'export_result' result.id %}" class="btn btn-outline-success" id="export-csv-btn">
+                        <i class="bi bi-save"></i> Сохранить результат
                     </a>
                     <form method="post" action="{% url 'delete_result' result.id %}" class="d-inline">
                         {% csrf_token %}
