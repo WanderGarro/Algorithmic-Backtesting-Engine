@@ -132,6 +132,9 @@
     │   └── services.py           # Сервисный слой для связи с ядром
     │
     ├── tests/                    # ТЕСТЫ
+    │   ├── conftest.py           # Тетстовые данные
+    │   ├── test_indicators.py    # Тесты индикаторов
+    │   └── test_strategies.py    # Тесты стратегии
     │
     ├── db.sqlite                 # База данных
     ├── LICENSE                   # Лицензия

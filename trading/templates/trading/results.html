@@ -145,6 +145,7 @@
                                 <th>Тип</th>
                                 <th>Цена</th>
                                 <th>Количество</th>
+                                <th>Комиссия</th>
                                 <th>Стоимость</th>
                                 <th>PnL</th>
                             </tr>
@@ -152,7 +153,7 @@
                         <tbody>
                             {% for trade in results.trades_data %}
                             <tr class="{% if trade.action == 'BUY' %}table-success{% else %}table-danger{% endif %}">
-                                <td>{{ trade.timestamp|date:"d.m.Y H:i" }}</td>
+                                <td>{{ trade.date }}</td>
                                 <td>
                                     <span class="badge {% if trade.action == 'BUY' %}bg-success{% else %}bg-danger{% endif %}">
                                         {{ trade.action }}
@@ -160,7 +161,8 @@
                                 </td>
                                 <td>${{ trade.price|floatformat:2 }}</td>
                                 <td>{{ trade.quantity|floatformat:0 }}</td>
-                                <td>${{ trade.value|floatformat:2 }}</td>
+                                <td>{{ trade.commission|floatformat:2 }}</td>
+                                <td>${{ trade.total|floatformat:2 }}</td>
                                 <td class="{% if trade.pnl_percent >= 0 %}text-success{% else %}text-danger{% endif %}">
                                     {{ trade.pnl_percent|floatformat:2 }}%
                                 </td>

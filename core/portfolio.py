@@ -24,7 +24,7 @@ class Portfolio:
 
     Пример:
         >>> portfolio = Portfolio(initial_cash=10000)
-        >>> portfolio.buy("AAPL", 10, 150.0, datetime.now(), "Trend following")
+        >>> portfolio.buy("AAPL", 10, 150.0, datetime.now(), 0.0, "Следование тренду")
         True
         >>> portfolio.get_position("AAPL")
         10
@@ -48,8 +48,8 @@ class Portfolio:
         self._record_portfolio_snapshot(datetime.now(), "Начальное состояние портфеля")
         self.logger.info(f"Портфель инициализирован с начальным капиталом ${initial_cash:.2f}")
 
-    def buy(self, symbol: str, quantity: int, price: float,
-            timestamp: datetime, reason: str = "") -> bool:
+    def buy(self, symbol: str, quantity: int, price: float, timestamp: datetime, commission: float = 0.0,
+                                                                                            reason: str = "") -> bool:
         """
         Покупка указанного количества акций по заданной цене.
 
@@ -65,13 +65,13 @@ class Portfolio:
 
         Пример:
             >>> portfolio = Portfolio(initial_cash=10000)
-            >>> portfolio.buy("AAPL", 10, 150.0, datetime.now(), "Пробой уровня")
+            >>> portfolio.buy("AAPL", 10, 150.0, datetime.now(), 0.0, "Пробой уровня")
             True
         """
-        total_cost = quantity * price
+        total_cost = (quantity * price) + commission
 
         if total_cost > self.cash:
-            self.logger.warning(f"Недостаточно средств для покупки {quantity} акций {symbol}. "
+            self.logger.warning(f"Недостаточно средств для ордера на Покупку {quantity} акций {symbol}. "
                                 f"Требуется: ${total_cost:.2f}, Доступно: ${self.cash:.2f}")
             return False
 
@@ -87,7 +87,7 @@ class Portfolio:
             'quantity': quantity,
             'price': price,
             'total': total_cost,
-            'commission': 0,
+            'commission': commission,
             'reason': reason
         }
         self.trade_history.append(trade_record)
@@ -101,7 +101,8 @@ class Portfolio:
 
         return True
 
-    def sell(self, symbol: str, quantity: int, price: float, timestamp: datetime, reason: str = "") -> bool:
+    def sell(self, symbol: str, quantity: int, price: float, timestamp: datetime, commission: float = 0.0,
+                                                                                            reason: str = "") -> bool:
         """
         Продажа указанного количества акций по заданной цене.
 
@@ -117,7 +118,7 @@ class Portfolio:
 
         Пример:
             >>> portfolio = Portfolio(initial_cash=10000)
-            >>> portfolio.sell("AAPL", 5, 160.0, datetime.now(), "Фиксация прибыли")
+            >>> portfolio.sell("AAPL", 5, 160.0, datetime.now(), 0.0,"Фиксация прибыли")
             True
         """
         current_position = self.positions.get(symbol, 0)
@@ -128,7 +129,7 @@ class Portfolio:
             return False
 
         # Исполнение продажи
-        total_revenue = quantity * price
+        total_revenue = (quantity * price) - commission
         self.cash += total_revenue
         self.positions[symbol] = current_position - quantity
 
@@ -145,7 +146,7 @@ class Portfolio:
             'quantity': quantity,
             'price': price,
             'total': total_revenue,
-            'commission': 0,
+            'commission': commission,
             'reason': reason
         }
         self.trade_history.append(trade_record)

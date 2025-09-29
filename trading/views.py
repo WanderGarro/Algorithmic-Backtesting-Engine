@@ -9,7 +9,16 @@ from django.shortcuts import render, get_object_or_404, redirect
 
 def index(request):
     """Главная страница приложения для торгового анализа и бэктестинга."""
-    return render(request, 'trading/index.html')
+    # Считаем общее количество выполненных бэктестов
+    total_backtests = BacktestResult.objects.count()
+
+    # Получаем количество доступных стратегий из TradingService
+    trading_service = TradingService()
+    available_strategies = len(trading_service.get_available_strategies())
+
+    context = {'total_backtests': total_backtests, 'available_strategies': available_strategies,}
+
+    return render(request, 'trading/index.html', context)
 
 def backtest_view(request):
     """
@@ -83,7 +92,8 @@ def backtest_view(request):
         default_start = datetime(2020, 1, 1).date()
         default_end = datetime(2025, 8, 31).date()
 
-        form = BacktestForm(initial={'start_date': default_start, 'end_date': default_end, 'initial_capital': 10000.0})
+        form = BacktestForm(initial={'start_date': default_start, 'end_date': default_end,
+                                     'initial_capital': 10000.0, 'commission':0.1})
 
     return render(request, 'trading/backtest.html', {'form': form})
 
@@ -118,7 +128,7 @@ def _map_form_data_to_strategy_params(form_data):
         'end_date': form_data['end_date'].strftime('%Y-%m-%d'),
         'initial_capital': float(form_data['initial_capital']),
         'interval': '1d',
-        'commission': 0.001,
+        'commission': float(form_data['commission'])/100,
         'slippage': 0.001,
         **form_data.get('strategy_params', {})
     }
@@ -220,7 +230,7 @@ def export_result_to_csv(request, result_id):
 
     # Записываем историю сделок
     writer.writerow(['История сделок'])
-    writer.writerow(['Дата', 'Действие', 'Цена', 'Количество', 'Стоимость', 'PnL %'])
+    writer.writerow(['Дата', 'Действие', 'Цена', 'Количество', 'Комиссия', 'Стоимость', 'PnL %'])
 
     try:
         trades_data = backtest_result.trades_data if backtest_result.trades_data else []
@@ -230,6 +240,7 @@ def export_result_to_csv(request, result_id):
                 trade.get('action', ''),
                 f"${trade.get('price', 0):.2f}" if trade.get('price') else '',
                 trade.get('quantity', ''),
+                f"${trade.get('commission', 0):.2f}" if trade.get('commission') else '',
                 f"${trade.get('value', 0):.2f}" if trade.get('value') else '',
                 f"{trade.get('pnl_percent', 0):.2f}%" if trade.get('pnl_percent') is not None else ''
             ])

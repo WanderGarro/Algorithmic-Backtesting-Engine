@@ -26,15 +26,11 @@ def serialize_backtest_results(results):
         for key, value in trade.items():
             if key == 'timestamp' and hasattr(value, 'strftime'):
                 # Преобразуем Timestamp в строку без временной зоны
-                serialized_trade['date'] = value.strftime('%Y-%m-%d %H:%M:%S')
+                serialized_trade['date'] = value.strftime('%H:%M:%S %d-%m-%Y ')
             elif key == 'timestamp':
                 serialized_trade['date'] = str(value)
             else:
-                # Переименовываем total в value для согласованности
-                if key == 'total':
-                    serialized_trade['value'] = round(float(value), 2)
-                else:
-                    serialized_trade[key] = value
+                serialized_trade[key] = value
 
         # Рассчитываем статистику по сделкам
         if 'pnl_percent' in serialized_trade:

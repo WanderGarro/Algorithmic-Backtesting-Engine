@@ -112,25 +112,15 @@ class OrderExecutor:
 
         # Исполнение через портфель с учетом типа операции
         if action == 'BUY':
-            # Для покупки добавляем комиссию к общей стоимости
-            total_cost = (quantity * execution_price) + commission_cost
-            if total_cost > portfolio.cash:
-                self.logger.warning(f"Недостаточно средств для ордера на Покупку: требуется ${total_cost:.2f}, "
-                    f"доступно ${portfolio.cash:.2f}")
-                return False
-            success = portfolio.buy(symbol, quantity, execution_price, timestamp, reason)
+            success = portfolio.buy(symbol, quantity, execution_price, timestamp, commission_cost, reason)
             if success:
-                # Вычитаем комиссию из баланса после успешной покупки
-                portfolio.cash -= commission_cost
                 self.logger.info(f"Успешная покупка {quantity} {symbol} по цене ${execution_price:.2f}")
             return success
 
         elif action == 'SELL':
             # Для продажи вычитаем комиссию из выручки
-            success = portfolio.sell(symbol, quantity, execution_price, timestamp, reason)
+            success = portfolio.sell(symbol, quantity, execution_price, timestamp, commission_cost, reason)
             if success:
-                # Вычитаем комиссию из выручки после успешной продажи
-                portfolio.cash -= commission_cost
                 self.logger.info(f"Успешная продажа {quantity} {symbol} по цене ${execution_price:.2f}")
             return success
 

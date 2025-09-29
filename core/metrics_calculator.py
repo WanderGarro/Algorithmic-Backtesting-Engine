@@ -1,5 +1,5 @@
-from numpy import cov, sqrt, var
 from typing import Dict, List
+from numpy import cov, sqrt, var
 from pandas import Series, concat
 
 class MetricsCalculator:

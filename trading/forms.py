@@ -45,12 +45,23 @@ class BacktestForm(forms.Form):
     )
 
     initial_capital = forms.DecimalField(
-        label='Начальный капитал',
+        label='Начальный капитал [$]',
         max_digits=12,
         decimal_places=2,
         initial=10000.00,
         widget=forms.NumberInput(attrs={'class': 'form-control'}),
         help_text="Начальная сумма капитала для тестирования"
+    )
+
+    commission = forms.DecimalField(
+        label='Комиссия [%]',
+        max_digits=5,
+        decimal_places=3,
+        initial=0.001,
+        min_value=0,
+        max_value=10,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.001', 'min': '0', 'max': '10'}),
+        help_text="Размер комиссии в процентах (например, 0.001 = 0.1%)"
     )
 
     # Параметры для SMA/EMA стратегии
