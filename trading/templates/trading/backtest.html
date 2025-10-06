@@ -21,7 +21,10 @@
             <div class="card-body">
                 <form method="post" id="backtest-form">
                     {% csrf_token %}
-                    
+
+                    <!-- Скрытое поле для хранения выбранного пресета -->
+                    {{ form.strategy_preset }}
+
                     {% if form.non_field_errors %}
                     <div class="alert alert-danger">
                         {% for error in form.non_field_errors %}
@@ -60,12 +63,12 @@
 
                         <div class="col-md-6">
                             <label for="{{ form.initial_capital.id_for_label }}" class="form-label">Начальный капитал ($)</label>
-                            {% render_field form.initial_capital class="form-control" %}
+                            {% render_field form.initial_capital class="form-control" id="initial-capital" %}
                         </div>
 
                         <div class="col-md-6">
                             <label for="{{ form.commission.id_for_label }}" class="form-label">Комиссия (%)</label>
-                            {% render_field form.commission class="form-control" %}
+                            {% render_field form.commission class="form-control" id="commission" %}
                             {% if form.commission.errors %}
                             <div class="text-danger small">{{ form.commission.errors }}</div>
                             {% endif %}
@@ -110,16 +113,24 @@
                 <h5 class="card-title mb-0">Быстрый выбор</h5>
             </div>
             <div class="card-body">
-                <div class="d-grid gap-2">
-                    <button class="btn btn-outline-primary preset-btn" data-preset="default">
-                        Стандартные настройки
+                <div class="d-grid gap-2" id="preset-buttons">
+                    <button type="button" class="btn btn-primary preset-btn active" data-preset="default">
+                        <i class="bi bi-check-circle"></i> Стандартные настройки
                     </button>
-                    <button class="btn btn-outline-success preset-btn" data-preset="conservative">
+                    <button type="button" class="btn btn-outline-success preset-btn" data-preset="conservative">
                         Консервативная стратегия
                     </button>
-                    <button class="btn btn-outline-warning preset-btn" data-preset="aggressive">
+                    <button type="button" class="btn btn-outline-warning preset-btn" data-preset="aggressive">
                         Агрессивная стратегия
                     </button>
+                </div>
+
+                <!-- Отображение текущих настроек -->
+                <div class="mt-3 p-2 bg-light rounded">
+                    <small class="text-muted">Текущие настройки:</small>
+                    <div id="current-preset-info" class="small">
+                        Стандартные настройки
+                    </div>
                 </div>
             </div>
         </div>
@@ -133,17 +144,155 @@ document.addEventListener('DOMContentLoaded', function() {
     const strategySelect = document.getElementById('strategy-select');
     const strategyInfo = document.getElementById('strategy-info');
     const dynamicParams = document.getElementById('dynamic-params');
-    
+    const presetButtons = document.querySelectorAll('.preset-btn');
+    const presetField = document.getElementById('id_strategy_preset');
+    const currentPresetInfo = document.getElementById('current-preset-info');
+    const initialCapitalField = document.getElementById('initial-capital');
+    const commissionField = document.getElementById('commission');
+
+    // Настройки пресетов
+    const presetConfigs = {
+        'default': {
+            name: 'Стандартные настройки',
+            initialCapital: 10000,
+            commission: 0.1,
+            description: 'Баланс между риском и доходностью'
+        },
+        'conservative': {
+            name: 'Консервативная стратегия',
+            initialCapital: 5000,
+            commission: 0.05,
+            description: 'Минимальный риск, стабильный рост'
+        },
+        'aggressive': {
+            name: 'Агрессивная стратегия',
+            initialCapital: 20000,
+            commission: 0.2,
+            description: 'Максимальная доходность, высокий риск'
+        }
+    };
+
+    // Функция получения активного пресета
+    function getActivePreset() {
+        for (const btn of presetButtons) {
+            if (btn.classList.contains('active')) {
+                return btn.getAttribute('data-preset');
+            }
+        }
+        return 'default';
+    }
+
+    // Функция обновления отображения текущих настроек
+    function updateCurrentPresetDisplay() {
+        const currentCapital = parseFloat(initialCapitalField.value) || 0;
+        const currentCommission = parseFloat(commissionField.value) || 0;
+        const activePreset = getActivePreset();
+        const config = presetConfigs[activePreset];
+
+        currentPresetInfo.innerHTML = `
+            <strong>${config.name}</strong><br>
+            <span class="text-muted">${config.description}</span><br>
+            <small>Капитал: $${currentCapital.toLocaleString()}, Комиссия: ${currentCommission}%</small>
+        `;
+
+        presetField.value = activePreset;
+    }
+
+    // Функция применения пресета
+    function applyPreset(presetKey) {
+        const config = presetConfigs[presetKey];
+
+        if (!config) return;
+
+        // Обновляем поля формы значениями из пресета
+        initialCapitalField.value = config.initialCapital;
+        commissionField.value = config.commission;
+
+        // Обновляем скрытое поле
+        presetField.value = presetKey;
+
+        // Обновляем отображение текущего пресета
+        currentPresetInfo.innerHTML = `
+            <strong>${config.name}</strong><br>
+            <span class="text-muted">${config.description}</span><br>
+            <small>Капитал: $${config.initialCapital.toLocaleString()}, Комиссия: ${config.commission}%</small>
+        `;
+
+        // Обновляем стили кнопок
+        updateButtonStyles(presetKey);
+    }
+
+    // Функция обновления стилей кнопок
+    function updateButtonStyles(activePresetKey) {
+        presetButtons.forEach(btn => {
+            const btnPreset = btn.getAttribute('data-preset');
+            if (btnPreset === activePresetKey) {
+                // Активная кнопка
+                btn.classList.remove('btn-outline-primary', 'btn-outline-success', 'btn-outline-warning');
+                if (btnPreset === 'conservative') {
+                    btn.classList.add('btn-success');
+                } else if (btnPreset === 'aggressive') {
+                    btn.classList.add('btn-warning');
+                } else {
+                    btn.classList.add('btn-primary');
+                }
+                btn.classList.add('active');
+                // Добавляем иконку только к активной кнопке
+                btn.innerHTML = `<i class="bi bi-check-circle"></i> ${btn.textContent.replace('✓ ', '')}`;
+            } else {
+                // Неактивные кнопки
+                btn.classList.remove('btn-primary', 'btn-success', 'btn-warning', 'active');
+                // Возвращаем соответствующий outline стиль
+                if (btnPreset === 'conservative') {
+                    btn.classList.add('btn-outline-success');
+                } else if (btnPreset === 'aggressive') {
+                    btn.classList.add('btn-outline-warning');
+                } else {
+                    btn.classList.add('btn-outline-primary');
+                }
+                // Убираем иконку
+                btn.innerHTML = btn.textContent.replace('✓ ', '');
+            }
+        });
+    }
+
+    // Обработчики для кнопок пресетов
+    presetButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const presetKey = this.getAttribute('data-preset');
+            applyPreset(presetKey);
+        });
+    });
+
+    // Обработчики изменений для полей ввода - обновляем отображение
+    initialCapitalField.addEventListener('input', updateCurrentPresetDisplay);
+    initialCapitalField.addEventListener('change', updateCurrentPresetDisplay);
+    commissionField.addEventListener('input', updateCurrentPresetDisplay);
+    commissionField.addEventListener('change', updateCurrentPresetDisplay);
+
+    // Инициализация стандартного пресета
+    applyPreset('default');
+
     // Загрузка информации о стратегиях
     fetch('/api/strategies/')
         .then(response => response.json())
         .then(strategies => {
             window.strategiesData = strategies;
-            
+
+            // Автоматически выбираем стратегию из URL параметра
+            const urlParams = new URLSearchParams(window.location.search);
+            const presetStrategy = urlParams.get('strategy');
+
+            if (presetStrategy && strategies[presetStrategy]) {
+                strategySelect.value = presetStrategy;
+                // Выставляем событие change для загрузки параметров стратегии
+                strategySelect.dispatchEvent(new Event('change'));
+            }
+
             strategySelect.addEventListener('change', function() {
                 const strategyKey = this.value;
                 const strategy = strategies[strategyKey];
-                
+
                 if (strategy) {
                     // Обновляем информацию о стратегии
                     strategyInfo.innerHTML = `
@@ -152,19 +301,19 @@ document.addEventListener('DOMContentLoaded', function() {
                         <hr>
                         <small class="text-muted">Параметры:</small>
                         <ul class="small">
-                            ${Object.entries(strategy.parameters).map(([key, param]) => 
+                            ${Object.entries(strategy.parameters).map(([key, param]) =>
                                 `<li><strong>${key}</strong>: ${param.description} (по умолчанию: ${param.default})</li>`
                             ).join('')}
                         </ul>
                     `;
-                    
+
                     // Генерируем поля для параметров
                     dynamicParams.innerHTML = Object.entries(strategy.parameters).map(([key, param]) => `
-                        <div class="strategy-param">
+                        <div class="strategy-param mb-3">
                             <label class="form-label">${key}</label>
-                            <input type="number" 
-                                   class="form-control" 
-                                   name="strategy_params_${key}" 
+                            <input type="number"
+                                   class="form-control"
+                                   name="strategy_params_${key}"
                                    value="${param.default}"
                                    step="${param.step || 1}"
                                    min="${param.min || 0}">
@@ -173,12 +322,38 @@ document.addEventListener('DOMContentLoaded', function() {
                     `).join('');
                 }
             });
-            
+
             // Инициализируем для выбранной стратегии
             if (strategySelect.value) {
                 strategySelect.dispatchEvent(new Event('change'));
             }
         });
+
+    // Обработчик отправки формы
+    document.getElementById('backtest-form').addEventListener('submit', function(e) {
+        const selectedPreset = presetField.value;
+        const currentCapital = parseFloat(initialCapitalField.value) || 0;
+        const currentCommission = parseFloat(commissionField.value) || 0;
+
+        // Всегда используем выбранный пресет, даже если поля изменены
+        // В бизнес-логике можно использовать значения полей для расчетов
+    });
 });
 </script>
+
+<style>
+.preset-btn {
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.preset-btn.active {
+    transform: scale(1.02);
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+#current-preset-info {
+    transition: all 0.3s ease;
+}
+</style>
 {% endblock %}

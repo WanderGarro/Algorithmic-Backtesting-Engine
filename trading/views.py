@@ -92,10 +92,56 @@ def backtest_view(request):
         default_start = datetime(2020, 1, 1).date()
         default_end = datetime(2025, 8, 31).date()
 
-        form = BacktestForm(initial={'start_date': default_start, 'end_date': default_end,
-                                     'initial_capital': 10000.0, 'commission':0.1})
+        # Создаем начальные данные с выбранной стратегией
+        initial_data = {'start_date': default_start, 'end_date': default_end,
+            'initial_capital': 10000.0, 'commission': 0.1, 'strategy_preset': 'default'}
+
+        # Получаем стратегию из GET параметра, если она передана
+        initial_strategy = request.GET.get('strategy', None)
+        if initial_strategy:
+            initial_data['strategy'] = initial_strategy
+
+        form = BacktestForm(initial=initial_data)
 
     return render(request, 'trading/backtest.html', {'form': form})
+
+def strategies_view(request):
+    """Отображает страницу со всеми доступными стратегиями."""
+    trading_service = TradingService()
+    strategies = trading_service.get_available_strategies()
+
+    # Маппинг для отображения названий стратегий в форме
+    strategy_name_mapping = {
+        'sma_crossover': 'sma',
+        'ema_crossover': 'ema',
+        'rsi': 'rsi',
+        'rsi_with_trend': 'rsi_trend',
+        'macd': 'macd',
+        'macd_zero_cross': 'macd_zero',
+        'combined_rsi_macd': 'combined'
+    }
+
+    # Добавляем дополнительную информацию для отображения
+    enhanced_strategies = {}
+    for service_key, strategy in strategies.items():
+        form_key = strategy_name_mapping.get(service_key, service_key)
+
+        enhanced_strategies[form_key] = {
+            'name': trading_service.get_strategy_display_name(service_key),
+            'description': strategy['description'],
+            'parameters': strategy['parameters'],
+            'category': trading_service.get_strategy_category(service_key),
+            'risk_level': trading_service.get_risk_level(service_key),
+            'complexity': trading_service.get_complexity(service_key),
+            'recommended_timeframe': 'Daily',
+            'recommended_market': 'Stocks',
+            'trade_frequency': trading_service.get_trade_frequency(service_key),
+            'risk_percentage': trading_service.get_risk_percentage(service_key),
+            'recommendation': trading_service.get_recommendation(service_key)
+        }
+
+    context = {'strategies': enhanced_strategies}
+    return render(request, 'trading/strategies.html', context)
 
 def _map_form_data_to_strategy_params(form_data):
     """

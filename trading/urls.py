@@ -10,8 +10,8 @@ urlpatterns = [
     path('', views.index, name='index'),
 
     path('backtest/', views.backtest_view, name='backtest'),
-
     path('history/', views.results_history, name='history'),
+    path('strategies/', views.strategies_view, name='strategies'),
 
     path('result/<int:result_id>/', views.result_detail, name='result_detail'),
     path('result/delete/<int:result_id>/', views.delete_result, name='delete_result'),

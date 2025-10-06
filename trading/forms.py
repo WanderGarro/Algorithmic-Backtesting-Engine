@@ -64,6 +64,15 @@ class BacktestForm(forms.Form):
         help_text="Размер комиссии в процентах (например, 0.001 = 0.1%)"
     )
 
+    strategy_preset = forms.ChoiceField(
+        choices=[('default', 'Стандартные настройки'),
+            ('conservative', 'Консервативная стратегия'),
+            ('aggressive', 'Агрессивная стратегия'),],
+        initial='default',
+        widget=forms.HiddenInput(),
+        required=True
+    )
+
     # Параметры для SMA/EMA стратегии
     sma_short_window = forms.IntegerField(
         label='Короткое окно',

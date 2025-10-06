@@ -8,7 +8,7 @@
         <h1 class="mb-4">
             <i class="bi bi-journal-text"></i> Торговые стратегии
         </h1>
-        <p class="lead">Обзор всех доступных стратегий для бэктестинга</p>
+        <p class="text-muted">Обзор всех доступных стратегий для бэктестинга</p>
     </div>
 </div>
 
@@ -23,7 +23,7 @@
             </div>
             <div class="card-body">
                 <p class="card-text">{{ strategy.description }}</p>
-                
+
                 <h6>Параметры стратегии:</h6>
                 <div class="table-responsive">
                     <table class="table table-sm table-bordered">
@@ -45,14 +45,14 @@
                         </tbody>
                     </table>
                 </div>
-                
+
                 <div class="mt-3">
                     <strong>Рекомендации:</strong>
                     <ul class="small">
                         <li>Таймфрейм: {{ strategy.recommended_timeframe }}</li>
                         <li>Рынок: {{ strategy.recommended_market }}</li>
-                        <li>Риск: 
-                            <span class="badge 
+                        <li>Риск:
+                            <span class="badge
                                 {% if strategy.risk_level == 'Low' %}bg-success
                                 {% elif strategy.risk_level == 'Medium' %}bg-warning
                                 {% else %}bg-danger{% endif %}">
@@ -63,7 +63,7 @@
                 </div>
             </div>
             <div class="card-footer">
-                <a href="{% url 'backtest_view' %}?strategy={{ strategy_key }}" 
+                <a href="{% url 'backtest' %}?strategy={{ strategy_key }}"
                    class="btn btn-primary btn-sm">
                     <i class="bi bi-play-circle"></i> Протестировать
                 </a>
@@ -100,9 +100,13 @@
                                 <td><strong>{{ strategy.name }}</strong></td>
                                 <td>
                                     {% with stars=strategy.complexity %}
-                                    {% for i in "12345" %}
-                                        <i class="bi bi-star{% if forloop.counter <= stars %}fill{% else %}{% endif %} text-warning"></i>
-                                    {% endfor %}
+                                        {% for i in "12345" %}
+                                            {% if forloop.counter <= stars %}
+                                                <i class="bi bi-star-fill text-warning"></i>
+                                            {% else %}
+                                                <i class="bi bi-star text-warning"></i>
+                                            {% endif %}
+                                        {% endfor %}
                                     {% endwith %}
                                 </td>
                                 <td>

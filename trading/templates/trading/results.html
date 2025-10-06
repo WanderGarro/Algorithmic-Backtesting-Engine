@@ -180,42 +180,10 @@
 {% block extra_scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-// Данные для графика
-let chartCtx = null;
-let chartInstance = null;
-
-function showExportToast() {
-    if (typeof bootstrap !== 'undefined') {
-        const toastElement = document.createElement('div');
-        toastElement.className = 'toast align-items-center text-white bg-success border-0';
-        toastElement.style.position = 'fixed';
-        toastElement.style.top = '20px';
-        toastElement.style.right = '20px';
-        toastElement.style.zIndex = '1050';
-        toastElement.innerHTML = `
-            <div class="d-flex">
-                <div class="toast-body">
-                    <i class="bi bi-check-circle"></i> Экспорт CSV завершен успешно!
-                </div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-            </div>
-        `;
-
-        document.body.appendChild(toastElement);
-        const toast = new bootstrap.Toast(toastElement);
-        toast.show();
-
-        // Удаляем элемент после скрытия
-        toastElement.addEventListener('hidden.bs.toast', () => {
-            toastElement.remove();
-        });
-    }
-}
-
 // Инициализация графика
 document.addEventListener('DOMContentLoaded', function() {
     try {
-        chartCtx = document.getElementById('equityChart');
+        const chartCtx = document.getElementById('equityChart');
         if (!chartCtx) {
             throw new Error('Canvas element not found');
         }
@@ -235,6 +203,7 @@ document.addEventListener('DOMContentLoaded', function() {
         };
 
         const labels = [];
+        const dateMapping = {}; // Для сопоставления дат с индексами
 
         // Обрабатываем первую кривую для получения дат
         const firstCurveName = Object.keys(equityCurves)[0];
@@ -242,15 +211,62 @@ document.addEventListener('DOMContentLoaded', function() {
             const entries = Object.entries(equityCurves[firstCurveName]);
             entries.sort((a, b) => new Date(a[0]) - new Date(b[0]));
 
-            entries.forEach(([dateString, value]) => {
+            entries.forEach(([dateString, value], index) => {
                 const date = new Date(dateString);
                 const formattedDate = `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getFullYear()}`;
                 labels.push(formattedDate);
+                // Сохраняем mapping для точек сделок
+                dateMapping[dateString] = index;
             });
         }
 
-        // Создаем datasets для каждой кривой
+        // Добавляем точки для покупок
+        if (equityCurves.buy_points && Object.keys(equityCurves.buy_points).length > 0) {
+            const buyPointsData = createTradePointsData(equityCurves.buy_points, dateMapping, labels.length);
+            datasets.push({
+                label: '📈 Покупки',
+                data: buyPointsData,
+                borderColor: '#28a745',
+                backgroundColor: '#28a745',
+                pointRadius: 8,
+                pointHoverRadius: 12,
+                pointStyle: 'triangle',
+                showLine: false,
+                borderWidth: 2,
+                pointBackgroundColor: '#28a745',
+                pointBorderColor: '#ffffff',
+                pointBorderWidth: 2,
+                order: 1
+            });
+        }
+
+        // Добавляем точки для продаж
+        if (equityCurves.sell_points && Object.keys(equityCurves.sell_points).length > 0) {
+            const sellPointsData = createTradePointsData(equityCurves.sell_points, dateMapping, labels.length);
+            datasets.push({
+                label: '📉 Продажи',
+                data: sellPointsData,
+                borderColor: '#dc3545',
+                backgroundColor: '#dc3545',
+                pointRadius: 8,
+                pointHoverRadius: 12,
+                pointStyle: 'triangle',
+                rotation: 180,
+                showLine: false,
+                borderWidth: 2,
+                pointBackgroundColor: '#dc3545',
+                pointBorderColor: '#ffffff',
+                pointBorderWidth: 2,
+                order: 1
+            });
+        }
+
+        // Добавляем основные линии
         Object.entries(equityCurves).forEach(([curveName, curveData]) => {
+            if (curveName === 'buy_points' || curveName === 'sell_points') {
+                return; // Пропускаем точки сделок - они уже добавлены
+            }
+
             const entries = Object.entries(curveData);
             entries.sort((a, b) => new Date(a[0]) - new Date(b[0]));
 
@@ -266,14 +282,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 tension: 0.1,
                 pointRadius: 0,
                 pointHoverRadius: 3,
-                hidden: false //curveName !== 'total'
+                order: 100
             };
 
             datasets.push(curveConfig);
         });
 
         // Создаем график
-        chartInstance = new Chart(chartCtx, {
+        new Chart(chartCtx, {
             type: 'line',
             data: {
                 labels: labels,
@@ -292,7 +308,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         position: 'top',
                         labels: {
                             usePointStyle: true,
-                            padding: 20
+                            padding: 20,
+                            filter: function(legendItem, chartData) {
+                                // Показываем только основные кривые и точки сделок в легенде
+                                return legendItem.text.includes('💰') ||
+                                       legendItem.text.includes('💵') ||
+                                       legendItem.text.includes('📈') ||
+                                       legendItem.text.includes('📉');
+                            }
                         }
                     },
                     tooltip: {
@@ -301,8 +324,26 @@ document.addEventListener('DOMContentLoaded', function() {
                         callbacks: {
                             label: function(context) {
                                 const label = context.dataset.label || '';
-                                const value = context.parsed.y;
+                                let value = context.parsed.y;
+
+                                // Для точек сделок показываем дополнительную информацию
+                                if (label.includes('Покупки') || label.includes('Продажи')) {
+                                    const dateIndex = context.dataIndex;
+                                    const date = labels[dateIndex];
+                                    return `${label}: $${value.toLocaleString('ru-RU', {minimumFractionDigits: 2, maximumFractionDigits: 2})} (${date})`;
+                                }
+
                                 return `${label}: $${value.toLocaleString('ru-RU', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                            },
+                            afterLabel: function(context) {
+                                // Дополнительная информация для точек сделок
+                                const label = context.dataset.label || '';
+                                if (label.includes('Покупки')) {
+                                    return 'Сигнал на покупку';
+                                } else if (label.includes('Продажи')) {
+                                    return 'Сигнал на продажу';
+                                }
+                                return null;
                             }
                         }
                     }
@@ -343,6 +384,20 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+// Функция для создания данных точек сделок
+function createTradePointsData(tradePoints, dateMapping, totalLength) {
+    const data = new Array(totalLength).fill(null);
+
+    Object.entries(tradePoints).forEach(([dateString, value]) => {
+        const index = dateMapping[dateString];
+        if (index !== undefined) {
+            data[index] = parseFloat(value) || 0;
+        }
+    });
+
+    return data;
+}
+
 // Функция для перевода названий кривых
 function getCurveLabel(curveName) {
     const labels = {
@@ -356,30 +411,6 @@ function getCurveLabel(curveName) {
 // Функция для случайного цвета
 function getRandomColor() {
     return '#' + Math.floor(Math.random()*16777215).toString(16);
-}
-
-// Функции для управления графиком
-function toggleDataset(datasetName) {
-    if (!chartInstance) return;
-
-    const datasetIndex = chartInstance.data.datasets.findIndex(ds =>
-        ds.label.includes(getLabelPart(datasetName))
-    );
-
-    if (datasetIndex !== -1) {
-        const meta = chartInstance.getDatasetMeta(datasetIndex);
-        meta.hidden = !meta.hidden;
-        chartInstance.update();
-    }
-}
-
-function getLabelPart(name) {
-    const parts = {
-        'total': 'Общая',
-        'cash': 'Денежные',
-        'stocks': 'Акций'
-    };
-    return parts[name] || name;
 }
 
 function showChartError(error) {
@@ -397,18 +428,6 @@ function showChartError(error) {
 </script>
 
 <style>
-.chart-controls {
-    text-align: center;
-}
-.chart-controls .btn-group {
-    flex-wrap: wrap;
-    justify-content: center;
-}
-.chart-controls .btn {
-    margin: 2px;
-    font-size: 0.8rem;
-    padding: 0.25rem 0.5rem;
-}
 .equity-chart {
     height: 445px;
     position: relative;

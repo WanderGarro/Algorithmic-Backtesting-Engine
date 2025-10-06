@@ -1,7 +1,7 @@
 from datetime import datetime
 from core.logger import Logger
+from typing import Dict, Optional
 from core.portfolio import Portfolio
-from typing import Dict, Optional, Tuple
 from core.order_executor import OrderExecutor
 from pandas import DataFrame, Series, to_datetime
 from core.metrics_calculator import MetricsCalculator
@@ -159,18 +159,22 @@ class Backtester:
 
             # Исполнение сигнала
             if signal != 0:
-                action = "🟢 Покупку" if signal > 0 else "🔴 Продажа"
-                self.logger.debug(f"🎯 Сигнал {action} на баре {i}, цена: ${current_price:.2f}")
+                # Расчет размера позиции
+                quantity = self._calculate_position_size(current_price, signal)
 
-                self.order_executor.execute_signal(
-                    portfolio=self.portfolio,
-                    symbol=symbol,
-                    signal=signal,
-                    current_price=current_price,
-                    timestamp=timestamp,
-                    quantity=100,  # Фиксированный размер лота
-                    reason=f"Bar {i}"
-                )
+                if quantity != 0:
+                    action = "🟢 Покупку" if signal > 0 else "🔴 Продажа"
+                    self.logger.debug(f"🎯 Сигнал {action} на баре {i}, цена: ${current_price:.2f}")
+
+                    self.order_executor.execute_signal(
+                        portfolio=self.portfolio,
+                        symbol=symbol,
+                        signal=signal,
+                        current_price=current_price,
+                        timestamp=timestamp,
+                        quantity=quantity,
+                        reason=f"Bar {i}"
+                    )
 
             # Обновление стоимости портфеля
             current_prices = {symbol: current_price}
@@ -180,6 +184,65 @@ class Backtester:
             if i % max(1, len(data) // 10) == 0:
                 progress = (i / len(data)) * 100
                 self.logger.info(f"📊 Прогресс: {progress:.1f}%, Текущая стоимость портфеля: ${portfolio_value:,.2f}")
+
+    def _calculate_position_size(self, current_price: float, signal: int, risk_per_trade: float = 0.02) -> int:
+        """
+        Расчет размера позиции на основе доступного капитала и управления рисками.
+
+        Аргументы:
+            current_price (float): Текущая цена акции
+            signal (int): Торговый сигнал (1 - покупка, -1 - продажа)
+            risk_per_trade (float): Риск на сделку в % от капитала (по умолчанию 2%)
+
+        Возвращает:
+            int: Количество акций для торговли
+        """
+        if signal == 0:
+            return 0
+
+        symbol = list(self.portfolio.positions.keys())[0] if self.portfolio.positions else 'UNKNOWN'
+
+        # Для продажи - используем текущую позицию, если она есть
+        if signal == -1:
+            if symbol in self.portfolio.positions and self.portfolio.positions[symbol] > 0:
+                return self.portfolio.positions[symbol]
+            else:
+                self.logger.debug(f"⚠️ Нет открытой позиции для продажи {symbol}")
+                return 0
+
+        # Для покупки: расчет на основе управления рисками
+        available_cash = self.portfolio.cash
+
+        # Проверяем, что есть доступные средства
+        if available_cash <= 0:
+            self.logger.debug("⚠️ Недостаточно средств для покупки")
+            return 0
+
+        # Базовый расчет: используем до 95% доступных средств с учетом риска
+        risk_capital = available_cash * risk_per_trade
+        max_trade_amount = min(risk_capital * 5, available_cash * 0.95)  # 5x риск или 95% капитала
+
+        # Расчет количества акций
+        quantity = int(max_trade_amount / current_price)
+
+        # Проверка минимального количества
+        if quantity < 1:
+            self.logger.debug(f"⚠️ Недостаточно средств для покупки даже 1 акции. Цена: ${current_price:.2f}")
+            return 0
+
+        # Дополнительная проверка: не превышаем доступные средства
+        total_cost = quantity * current_price
+        if total_cost > available_cash:
+            # Пересчитываем с учетом доступных средств
+            quantity = int(available_cash * 0.95 / current_price)  # Оставляем 5% на комиссии
+            if quantity < 1:
+                return 0
+
+        self.logger.debug(
+            f"📊 Расчет позиции: цена ${current_price:.2f}, количество {quantity}, "
+            f"сумма ${quantity * current_price:.2f}")
+
+        return quantity
 
     def _calculate_results(self, data: DataFrame) -> Dict:
         """

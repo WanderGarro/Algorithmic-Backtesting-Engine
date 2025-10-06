@@ -288,6 +288,104 @@ class TradingService:
 
         return strategies[strategy_name]['parameters']
 
+    @staticmethod
+    def get_strategy_display_name(strategy_key):
+        """Возвращает читаемое название стратегии."""
+        names = {
+            'sma_crossover': 'SMA Crossover',
+            'ema_crossover': 'EMA Crossover',
+            'rsi': 'RSI Strategy',
+            'rsi_with_trend': 'RSI with Trend',
+            'macd': 'MACD Strategy',
+            'macd_zero_cross': 'MACD Zero Cross',
+            'combined_rsi_macd': 'Combined RSI/MACD'
+        }
+        return names.get(strategy_key, strategy_key.replace('_', ' ').title())
+
+    @staticmethod
+    def get_strategy_category(strategy_key):
+        """Определяет категорию стратегии."""
+        categories = {
+            'sma_crossover': 'Trend Following',
+            'ema_crossover': 'Trend Following',
+            'rsi': 'Momentum',
+            'rsi_with_trend': 'Momentum',
+            'macd': 'Trend/Momentum',
+            'macd_zero_cross': 'Trend/Momentum',
+            'combined_rsi_macd': 'Composite'
+        }
+        return categories.get(strategy_key, 'Technical')
+
+    @staticmethod
+    def get_risk_level(strategy_key):
+        """Определяет уровень риска стратегии."""
+        risk_levels = {
+            'sma_crossover': 'Low',
+            'ema_crossover': 'Low',
+            'rsi': 'Medium',
+            'rsi_with_trend': 'Medium',
+            'macd': 'Medium',
+            'macd_zero_cross': 'High',
+            'combined_rsi_macd': 'Medium'
+        }
+        return risk_levels.get(strategy_key, 'Medium')
+
+    @staticmethod
+    def get_complexity(strategy_key):
+        """Определяет сложность стратегии (1-5)."""
+        complexity = {
+            'sma_crossover': 2,
+            'ema_crossover': 2,
+            'rsi': 3,
+            'rsi_with_trend': 4,
+            'macd': 3,
+            'macd_zero_cross': 4,
+            'combined_rsi_macd': 5
+        }
+        return complexity.get(strategy_key, 3)
+
+    @staticmethod
+    def get_trade_frequency(strategy_key):
+        """Определяет частоту сделок."""
+        frequency = {
+            'sma_crossover': 'Low',
+            'ema_crossover': 'Low',
+            'rsi': 'Medium',
+            'rsi_with_trend': 'Medium',
+            'macd': 'Medium',
+            'macd_zero_cross': 'High',
+            'combined_rsi_macd': 'Medium'
+        }
+        return frequency.get(strategy_key, 'Medium')
+
+    @staticmethod
+    def get_risk_percentage(strategy_key):
+        """Определяет процент риска для визуализации."""
+        risk_percentage = {
+            'sma_crossover': 30,
+            'ema_crossover': 30,
+            'rsi': 50,
+            'rsi_with_trend': 50,
+            'macd': 50,
+            'macd_zero_cross': 70,
+            'combined_rsi_macd': 50
+        }
+        return risk_percentage.get(strategy_key, 50)
+
+    @staticmethod
+    def get_recommendation(strategy_key):
+        """Определяет рекомендацию по использованию."""
+        recommendations = {
+            'sma_crossover': 'Рекомендуется',
+            'ema_crossover': 'Рекомендуется',
+            'rsi': 'Умеренно',
+            'rsi_with_trend': 'Умеренно',
+            'macd': 'Рекомендуется',
+            'macd_zero_cross': 'Осторожно',
+            'combined_rsi_macd': 'Умеренно'
+        }
+        return recommendations.get(strategy_key, 'Умеренно')
+
     def validate_strategy_parameters(self, strategy_name: str, **params) -> bool:
         """
         Проверяет корректность параметров для указанной стратегии.

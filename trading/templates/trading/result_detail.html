@@ -59,7 +59,7 @@
     <!-- График кривой капитала -->
     <div class="col-lg-8">
         <div class="card mb-4">
-            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+            <div class="card-header bg-dark text-white">
                 <h5 class="card-title mb-0">Кривая капитала</h5>
             </div>
             <div class="card-body">
@@ -196,12 +196,9 @@
 {% if result.equity_curve_data %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-let chartCtx = null;
-let chartInstance = null;
-
 document.addEventListener('DOMContentLoaded', function() {
     try {
-        chartCtx = document.getElementById('equityChart');
+        const chartCtx = document.getElementById('equityChart');
         if (!chartCtx) return;
 
         const equityData = {{ result.equity_curve_data|safe }};
@@ -213,6 +210,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Подготовка данных для графика
         const datasets = [];
         const labels = [];
+        const dateMapping = {}; // Для сопоставления дат с индексами
 
         // Цвета для разных кривых
         const colors = {
@@ -227,15 +225,62 @@ document.addEventListener('DOMContentLoaded', function() {
             const entries = Object.entries(equityData[firstCurveName]);
             entries.sort((a, b) => new Date(a[0]) - new Date(b[0]));
 
-            entries.forEach(([dateString, value]) => {
+            entries.forEach(([dateString, value], index) => {
                 const date = new Date(dateString);
                 const formattedDate = `${date.getDate().toString().padStart(2, '0')}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getFullYear()}`;
                 labels.push(formattedDate);
+                // Сохраняем mapping для точек сделок
+                dateMapping[dateString] = index;
             });
         }
 
-        // Создаем datasets для каждой кривой
+        // Добавляем точки для покупок
+        if (equityData.buy_points && Object.keys(equityData.buy_points).length > 0) {
+            const buyPointsData = createTradePointsData(equityData.buy_points, dateMapping, labels.length);
+            datasets.push({
+                label: '📈 Покупки',
+                data: buyPointsData,
+                borderColor: '#28a745',
+                backgroundColor: '#28a745',
+                pointRadius: 8,
+                pointHoverRadius: 12,
+                pointStyle: 'triangle',
+                showLine: false,
+                borderWidth: 3,
+                pointBackgroundColor: '#28a745',
+                pointBorderColor: '#ffffff',
+                pointBorderWidth: 1,
+                order: 1
+            });
+        }
+
+        // Добавляем точки для продаж
+        if (equityData.sell_points && Object.keys(equityData.sell_points).length > 0) {
+            const sellPointsData = createTradePointsData(equityData.sell_points, dateMapping, labels.length);
+            datasets.push({
+                label: '📉 Продажи',
+                data: sellPointsData,
+                borderColor: '#dc3545',
+                backgroundColor: '#dc3545',
+                pointRadius: 8,
+                pointHoverRadius: 12,
+                pointStyle: 'triangle',
+                rotation: 180,
+                showLine: false,
+                borderWidth: 2,
+                pointBackgroundColor: '#dc3545',
+                pointBorderColor: '#ffffff',
+                pointBorderWidth: 1,
+                order: 1
+            });
+        }
+
+        // Добавляем основные линии
         Object.entries(equityData).forEach(([curveName, curveData]) => {
+            if (curveName === 'buy_points' || curveName === 'sell_points') {
+                return;
+            }
+
             const entries = Object.entries(curveData);
             entries.sort((a, b) => new Date(a[0]) - new Date(b[0]));
 
@@ -250,14 +295,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 fill: curveName === 'total',
                 tension: 0.1,
                 pointRadius: 0,
-                pointHoverRadius: 3
+                pointHoverRadius: 3,
+                order: 100
             };
 
             datasets.push(curveConfig);
         });
 
         // Создаем график
-        chartInstance = new Chart(chartCtx, {
+        new Chart(chartCtx, {
             type: 'line',
             data: {
                 labels: labels,
@@ -293,7 +339,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
                 scales: {
                     x: {
-                        grid: { display: false },
+                        grid: {
+                            display: false
+                        },
                         ticks: {
                             maxRotation: 45,
                             callback: function(value, index, ticks) {
@@ -306,7 +354,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     },
                     y: {
                         beginAtZero: false,
-                        grid: { color: 'rgba(0,0,0,0.1)' },
+                        grid: {
+                            color: 'rgba(0,0,0,0.1)'
+                        },
                         ticks: {
                             callback: function(value) {
                                 return '$' + value.toLocaleString('ru-RU');
@@ -323,6 +373,20 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+// Функция для создания данных точек сделок
+function createTradePointsData(tradePoints, dateMapping, totalLength) {
+    const data = new Array(totalLength).fill(null);
+
+    Object.entries(tradePoints).forEach(([dateString, value]) => {
+        const index = dateMapping[dateString];
+        if (index !== undefined) {
+            data[index] = parseFloat(value) || 0;
+        }
+    });
+
+    return data;
+}
+
 // Функция для перевода названий кривых
 function getCurveLabel(curveName) {
     const labels = {
@@ -336,30 +400,6 @@ function getCurveLabel(curveName) {
 // Функция для случайного цвета
 function getRandomColor() {
     return '#' + Math.floor(Math.random()*16777215).toString(16);
-}
-
-// Функции для управления графиком
-function toggleDataset(datasetName) {
-    if (!chartInstance) return;
-
-    const datasetIndex = chartInstance.data.datasets.findIndex(ds =>
-        ds.label.includes(getLabelPart(datasetName))
-    );
-
-    if (datasetIndex !== -1) {
-        const meta = chartInstance.getDatasetMeta(datasetIndex);
-        meta.hidden = !meta.hidden;
-        chartInstance.update();
-    }
-}
-
-function getLabelPart(name) {
-    const parts = {
-        'total': 'Общая',
-        'cash': 'Денежные',
-        'stocks': 'Акций'
-    };
-    return parts[name] || name;
 }
 
 function showChartError(error) {
@@ -385,14 +425,6 @@ function showChartError(error) {
 .metric-card .card-title {
     font-size: 1.5rem;
     font-weight: bold;
-}
-.chart-controls .btn-group {
-    flex-wrap: wrap;
-}
-.chart-controls .btn {
-    margin: 1px;
-    font-size: 0.8rem;
-    padding: 0.2rem 0.4rem;
 }
 </style>
 {% endblock %}
