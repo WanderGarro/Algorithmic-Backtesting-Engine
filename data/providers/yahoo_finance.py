@@ -248,7 +248,7 @@ class YahooFinanceProvider(DataProvider):
         """
         # Forward fill для цен
         price_columns = ['open', 'high', 'low', 'close']
-        data[price_columns] = data[price_columns].fillna(method='ffill')
+        data[price_columns] = data[price_columns].ffill()
 
         # Заполнение объема нулями
         data['volume'] = data['volume'].fillna(0)

@@ -218,6 +218,7 @@ class Backtester:
             self.logger.debug("⚠️ Недостаточно средств для покупки")
             return 0
 
+        # TODO: сделать позже динамический расчет риска
         # Базовый расчет: используем до 95% доступных средств с учетом риска
         risk_capital = available_cash * risk_per_trade
         max_trade_amount = min(risk_capital * 5, available_cash * 0.95)  # 5x риск или 95% капитала

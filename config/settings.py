@@ -1,17 +1,18 @@
 from pathlib import Path
+from decouple import config
 
 # Базовые пути проекта
 # BASE_DIR - абсолютный путь к директории проекта
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# ВАЖНО ДЛЯ БЕЗОПАСНОСТИ: храните секретный ключ в секрете в production!
-SECRET_KEY = 'django-insecure-7g9paczi+%hw_!kw_sp%46r#n7h7+c*bff*_r+=v7hprke8oa@'
+# Безопасность: использование переменных окружения
+SECRET_KEY = config('SECRET_KEY', default='django-insecure-7g9paczi+%hw_!kw_sp%46r#n7h7+c*bff*_r+=v7hprke8oa@')
 
-# ВАЖНО ДЛЯ БЕЗОПАСНОСТИ: не включайте debug в production!
-DEBUG = True
+# Безопасность: debug выключен по умолчанию в production
+DEBUG = config('DEBUG', default=False, cast=bool)
 
-# Разрешенные хосты (для production добавьте доменные имена)
-ALLOWED_HOSTS = []
+# Разрешенные хосты с поддержкой Docker
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=lambda v: [s.strip() for s in v.split(',')])
 
 # Определение установленных приложений
 INSTALLED_APPS = [
@@ -44,7 +45,7 @@ ROOT_URLCONF = 'config.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',   # Движок шаблонов
-        'DIRS': [],                                                     # Дополнительные директории шаблонов
+        'DIRS': [BASE_DIR / 'trading' / 'templates'],                 # Дополнительные директории шаблонов
         'APP_DIRS': True,                                               # Искать шаблоны в поддиректориях приложений
         'OPTIONS': {
             'context_processors': [                                     # Контекст-процессоры для шаблонов
@@ -92,6 +93,26 @@ USE_TZ = True               # Использовать часовые пояса
 
 # Настройки статических файлов (CSS, JavaScript, Images)
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Медиа файлы
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 # Тип поля для автоматического создания первичных ключей
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Логирование
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': True,
+    'handlers': {
+        'null': {
+            'class': 'logging.NullHandler',
+        },
+    },
+    'root': {
+        'handlers': ['null'],
+        'level': 'ERROR',
+    },
+}

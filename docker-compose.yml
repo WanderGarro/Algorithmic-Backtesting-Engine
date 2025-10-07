@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./logs:/app/logs  # Монтируем папку logs в /app/logs
+      - ./results:/app/results
+      - ./db.sqlite3:/app/db.sqlite3
+      - ./staticfiles:/app/staticfiles
+      - ./media:/app/media
+    environment:
+      - DEBUG=True
+      - SECRET_KEY=django-insecure-7g9paczi+%hw_!kw_sp%46r#n7h7+c*bff*_r+=v7hprke8oa@
+      - ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
+      - PYTHONUNBUFFERED=1
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
+             gunicorn --bind 0.0.0.0:8000 --access-logfile - --error-logfile - config.wsgi:application"

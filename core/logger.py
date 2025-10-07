@@ -1,25 +1,34 @@
 import logging
-from datetime import datetime
-from os import path, makedirs
-from logging.handlers import RotatingFileHandler
+from time import time
+from sys import stdout
 
 class Logger:
-    """Класс для настройки и управления логированием в проекте.
+    """
+    Универсальный класс для настройки и управления логированием в проекте.
 
-    Поддерживает:
-        Запись логов в файл с ротацией (ограничение по размеру)
-        Вывод логов в консоль
-        Разные уровни логирования (DEBUG, INFO, ERROR и др.)
-        Автоматическое создание папки для логов
+    Предоставляет гибкую систему логирования с поддержкой различных обработчиков,
+    форматирования с иконками. Особенно ориентирован на корректную работу в Docker-окружении.
+
+    Основные возможности:
+        Вывод логов в консоль с форматированием и иконками
+        Поддержка различных уровней логирования (DEBUG, INFO, ERROR и др.)
+        Интеграция с Docker (логи направляются в stdout)
+        Unicode-иконки для различных уровней логирования
+        На русском языке названия уровней логирования
+        Предотвращение дублирования обработчиков
+
+    Атрибуты класса:
+        _LEVEL_ICONS (dict): Соответствие уровней логирования иконкам в Unicode
+        _LEVEL_NAMES (dict): На русском языке названия уровней логирования
+        _MAX_MESSAGES_PER_MINUTE(int): Максимальное количество сообщений в минуту
 
     Аргументы:
-        name (str): Имя логгера (обычно __name__ вызывающего модуля)
-        level (int, optional): Уровень логирования. По умолчанию logging.INFO.
-        log_dir (str, optional): Папка для логов. По умолчанию "logs".
-        filename_prefix (str, optional): Префикс имени файла. По умолчанию "log".
-        max_bytes (int, optional): Макс. размер файла (в байтах) перед ротацией. По умолчанию 5 МБ.
-        backup_count (int, optional): Кол-во бэкап-файлов. По умолчанию 3.
+        name (str): Имя логгера (обычно передается __name__ вызывающего модуля)
+        level (int, optional): Уровень логирования из модуля logging. По умолчанию: logging.INFO
 
+    Применение:
+        В Docker-окружении логи автоматически направляются в stdout,
+        что позволяет использовать `docker logs` для просмотра логов.
 
     Пример:
         >>> logger = Logger(__name__, level=logging.DEBUG)
@@ -43,70 +52,135 @@ class Logger:
         'CRITICAL': 'Критическая ошибка'
     }
 
-    def __init__(self, name: str, level: int = logging.INFO, log_dir: str = "logs", filename_prefix: str = "log",
-                 max_bytes: int = 5 * 1024 * 1024, backup_count: int = 3):
+    # Максимальное количество сообщений в минуту
+    _MAX_MESSAGES_PER_MINUTE = 10000
 
+    def __init__(self, name: str, level: int = logging.INFO):
+        """
+        Инициализирует логгер с указанным именем и уровнем логирования.
+
+        Создает новый логгер или возвращает существующий с тем же именем.
+        Предотвращает дублирование обработчиков при повторной инициализации.
+
+        Аргументы:
+            name (str): Имя логгера (обычно __name__ вызывающего модуля)
+            level (int): Уровень логирования из модуля logging
+
+        Применение:
+            Если логгер с указанным именем уже существует и имеет обработчики,
+            новые обработчики добавлены не будут (предотвращение дублирования).
+        """
+        # Инициализация
+        self._message_count = 0
+        self._last_reset = time()
         self.logger = logging.getLogger(name)
 
         # Предотвращаем добавление обработчиков несколько раз
         if not self.logger.handlers:
             self.logger.setLevel(level)
-            self._setup_handlers(log_dir, filename_prefix, max_bytes, backup_count)
+            self.logger.propagate = False
+            self._setup_docker_handlers()
 
-    @staticmethod
-    def _generate_log_filename(log_dir: str, filename_prefix: str) -> str:
-        """Генерирует уникальное имя файла с временной меткой.
+    def _setup_docker_handlers(self) -> None:
+        """
+        Настраивает обработчики логирования для Docker-окружения.
 
-        Аргументы:
-            log_dir (str): Папка для логов
-            filename_prefix (str): Префикс имени файла
+        В Docker-контейнерах рекомендуется направлять логи в stdout/stderr,
+        чтобы они могли быть перехвачены системой логирования Docker и
+        доступны через команды `docker logs` и системы мониторинга.
+
+        Создает и настраивает:
+            Formatter с временными метками и структурой логов
+            StreamHandler для вывода в стандартный поток вывода (stdout)
+
+        Формат логов:
+            YYYY-MM-DD HH:MM:SS - logger_name - LEVEL - message.
 
         Возвращает:
-            str: Полный путь к файлу логов
+            None
         """
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{filename_prefix}_{timestamp}.log"
-        return path.join(log_dir, filename)
-
-    def _setup_handlers(self, log_dir: str, filename_prefix: str,
-                        max_bytes: int, backup_count: int) -> None:
-        """Настраивает обработчики для файла и консоли.
-
-        Аргументы:
-            log_dir (str): Папка для логов
-            filename_prefix (str): Префикс имени файла
-            max_bytes (int): Макс. размер файла до ротации
-            backup_count (int): Кол-во бэкап-файлов
-        """
-
-        # Получаем корень проекта (на один уровень выше текущего файла)
-        project_root = path.abspath(path.join(path.dirname(__file__), '..'))
-
-        # Формируем полный путь к папке логов
-        log_dir_path = path.join(project_root, log_dir)
-
-        # Создаем директорию для логов
-        makedirs(log_dir_path, exist_ok=True)
-
-        # Генерируем уникальное имя файла с временной меткой
-        log_file_path = self._generate_log_filename(log_dir_path, filename_prefix)
 
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                                       datefmt='%Y-%m-%d %H:%M:%S')
 
-        # Чередующий файловый обработчик
-        file_handler = RotatingFileHandler(log_file_path,maxBytes=max_bytes,backupCount=backup_count,encoding='utf-8')
-        file_handler.setFormatter(formatter)
-
-        # Консольный обработчик
-        console_handler = logging.StreamHandler()
+        # Обработчик для консоли
+        console_handler = logging.StreamHandler(stdout)
         console_handler.setFormatter(formatter)
+        console_handler.addFilter(self._rate_limit_filter)
 
-        self.logger.addHandler(file_handler)
+        # Обработчик для файла - исправленный путь
+        file_handler = logging.FileHandler('/app/logs/log.log')
+        file_handler.setFormatter(formatter)
+        file_handler.addFilter(self._rate_limit_filter)
+
         self.logger.addHandler(console_handler)
+        self.logger.addHandler(file_handler)
 
-        # Логируем информацию о создании нового лог-файла
-        self.logger.info(f"Создан новый лог-файл: {path.basename(log_file_path)}")
+    def _rate_limit_filter(self, record) -> bool:
+        """
+        Фильтр для ограничения частоты логирования.
+
+        Обеспечивает защиту от чрезмерно частого логирования, которое может привести к:
+            Переполнению лог-файлов
+            Избыточной нагрузке на систему
+            Сложностям анализа логов при слишком большом объеме данных
+
+        Принцип работы:
+            Подсчитывает количество сообщений за текущую минуту
+            При превышении лимита (_MAX_MESSAGES_PER_MINUTE) блокирует новые сообщения
+            Каждую минуту счетчик сбрасывается
+            При первом превышении лимита выводится однократное предупреждение
+
+        Алгоритм:
+            1. Получает текущее время
+            2. Проверяет, прошла ли минута с последнего сброса:
+                Если да: сбрасывает счетчик сообщений и обновляет время сброса
+            3. Проверяет превышение лимита:
+                Если лимит превышен:
+                   * При ПЕРВОМ превышении выводит предупреждение.
+                   * Увеличивает счетчик и возвращает False (сообщение не логируется).
+                Если лимит не превышен:
+                   * Увеличивает счетчик и возвращает True (сообщение логируется)
+
+        Особенности:
+            Использует logging.warning вместо self.logger для избежания рекурсии
+            Предупреждение выводится только один раз при первом превышении лимита
+            Фильтр применяется ко ВСЕМ сообщениям логгера
+
+        Аргументы:
+            record: Объект записи лога, содержащий информацию о сообщении
+
+        Возвращает (bool): True: сообщение должно быть обработано (не превышен лимит)
+                           False: сообщение должно быть отброшено (превышен лимит)
+
+        Пример работы:
+            Лимит: 1000 сообщений/минуту
+                Сообщения 1-1000: проходят нормально
+                Сообщение 1001: выводится предупреждение и сообщение блокируется
+                Сообщения 1002-...: блокируются без предупреждений
+                Через 60+ секунд: счетчик сбрасывается, цикл повторяется
+
+        Применение:
+            Фильтр автоматически добавляется ко всем обработчикам логгера
+            при инициализации через _setup_docker_handlers()
+        """
+        current_time = time()
+
+        # Сбрасываем счетчик каждую минуту
+        if current_time - self._last_reset > 60:
+            self._message_count = 0
+            self._last_reset = current_time
+
+        # Проверяем лимит
+        if self._message_count >= self._MAX_MESSAGES_PER_MINUTE:
+            if self._message_count == self._MAX_MESSAGES_PER_MINUTE:
+                # Однократное предупреждение о превышении лимита
+                logging.warning("Достигнут лимит сообщений в минуту, логирование приостановлено")
+            self._message_count += 1
+            return False
+
+        self._message_count += 1
+        return True
 
     def _format_message(self, level: str, message: str) -> str:
         """Форматирует сообщение с иконкой и уровнем.

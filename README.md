@@ -136,7 +136,11 @@
     │   ├── test_indicators.py    # Тесты индикаторов
     │   └── test_strategies.py    # Тесты стратегии
     │
+    ├── .dockerignore             # Конфигурация игнорирования 
+    ├── .env                      # Конфигурация переменных окружения
     ├── db.sqlite                 # База данных
+    ├── docker-compose.yml        # Оркестрация
+    ├── Dockerfile                # Docker-образ
     ├── LICENSE                   # Лицензия
     ├── manage.py                 # Утилита управления
     ├── README.md                 # Документация
